@@ -1,0 +1,44 @@
+[project]
+name = "rds-cost-estimator"
+version = "0.1.0"
+requires-python = ">=3.11"
+dependencies = [
+    "boto3>=1.34.0",
+    "pydantic>=2.0.0",
+    "rich>=13.0.0",        # 콘솔 표 렌더링 (rich.table)
+    "anyio>=4.0.0",        # asyncio 호환 레이어
+    "pypdf>=4.0.0",        # PDF 텍스트 추출
+    "python-docx>=1.1.0",  # DOCX 텍스트 추출
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.23.0",
+    "hypothesis>=6.100.0",  # Property-Based Testing
+    "moto[pricing]>=5.0.0", # AWS API 모킹
+    "mypy>=1.9.0",
+    "ruff>=0.4.0",
+]
+
+[project.scripts]
+rds-cost-estimator = "rds_cost_estimator.__main__:main"
+
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
