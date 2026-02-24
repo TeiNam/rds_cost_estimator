@@ -147,6 +147,9 @@ class AWRMetrics(BaseModel):
 
     avg_cpu_percent: Optional[float] = None
     peak_cpu_percent: Optional[float] = None
+    # CPU/s (초당 CPU 사용량, 절대값) - DBCSI 리포트에서 추출
+    avg_cpu_per_s: Optional[float] = None
+    peak_cpu_per_s: Optional[float] = None
     avg_iops: Optional[float] = None
     peak_iops: Optional[float] = None
     avg_memory_gb: Optional[float] = None
@@ -198,9 +201,11 @@ class ParsedDocumentInfo(BaseModel):
     recommended_instance_by_sga: Optional[str] = None
     on_prem_cost: Optional[float] = None
     engine: Optional[str] = None
+    target_engine: Optional[str] = None  # 마이그레이션 타겟 엔진 (aurora-postgresql 등)
 
     # 서버 사양
     cpu_cores: Optional[int] = None
+    num_cpus: Optional[int] = None  # 논리 CPU 수 (하이퍼스레딩 포함)
     physical_memory_gb: Optional[float] = None
     db_size_gb: Optional[float] = None
     instance_config: Optional[str] = None  # 예: "2 (RAC)"

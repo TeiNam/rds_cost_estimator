@@ -77,12 +77,20 @@ class BedrockClient:
             "2. recommended_instance_by_sga: Oracle SGA 메모리 기준으로 산정한 RDS 인스턴스\n\n"
             "인스턴스 유형은 'db.' 접두사를 포함한 전체 이름으로 추출하세요.\n\n"
             "AWR 메트릭에서 다음 항목을 추출하세요:\n"
-            "- CPU 사용률 (평균/피크)\n"
+            "- CPU 사용률 % (평균/피크) - os_cpu 또는 퍼센트로 표시된 값\n"
+            "- CPU/s (평균/피크) - 초당 CPU 사용량 절대값 (cpu_per_s). "
+            "DBCSI 리포트에서 '평균 CPU/s', '최대 CPU/s' 형태로 표시됨\n"
             "- IOPS (평균/피크)\n"
             "- 메모리 사용량 (평균/피크)\n"
-            "- SQL*Net bytes sent to client (일별)\n"
-            "- SQL*Net bytes received from client (일별)\n"
-            "- Redo 생성량 (일별)\n\n"
+            "- 네트워크 트래픽 (일별 바이트 단위로 변환하여 응답):\n"
+            "  * AWR .out 파일의 SYSSTAT 섹션에 network_incoming_mb, network_outgoing_mb 컬럼이 있음\n"
+            "    이 값은 스냅샷 기간(dur_m분) 동안의 MB 값임. 일별 바이트로 변환: MB × (1440/dur_m) × 1024 × 1024\n"
+            "    network_outgoing_mb → sqlnet_bytes_sent_per_day, network_incoming_mb → sqlnet_bytes_received_per_day\n"
+            "  * MAIN-METRICS 섹션의 redo_mb_s (초당 MB) → 일별 바이트: redo_mb_s × 86400 × 1024 × 1024\n"
+            "  * 여러 스냅샷이 있으면 평균값을 사용하세요\n"
+            "  * RAC 환경(인스턴스 2개 이상)이면 모든 인스턴스의 합산값을 사용하세요\n"
+            "  * DBCSI 리포트(MD)에 SQL*Net bytes 데이터가 있으면 그것을 우선 사용하세요\n"
+            "- Redo 생성량 (일별 바이트)\n\n"
             "SGA 분석에서 다음 항목을 추출하세요:\n"
             "- 현재 SGA 크기 (GB)\n"
             "- 권장 SGA 크기 (GB)\n\n"
@@ -96,21 +104,26 @@ class BedrockClient:
             '  "recommended_instance_by_size": "현재 사이즈 기준 권장 인스턴스 (없으면 null)",\n'
             '  "recommended_instance_by_sga": "SGA 기준 권장 인스턴스 (없으면 null)",\n'
             '  "on_prem_cost": null,\n'
-            '  "engine": "DB 엔진 (예: oracle-ee, 없으면 null)",\n'
+            '  "engine": "소스 DB 엔진 (예: oracle-ee, 없으면 null)",\n'
+            '  "target_engine": "마이그레이션 타겟 엔진. 문서에 추천 타겟이 명시되어 있으면 해당 값을 사용 '
+            '(aurora-postgresql, aurora-mysql, postgresql, mysql 중 하나, 없으면 null)",\n'
             '  "cpu_cores": "CPU 코어 수 (숫자, 없으면 null)",\n'
+            '  "num_cpus": "논리 CPU 수 (하이퍼스레딩 포함, 숫자, 없으면 null)",\n'
             '  "physical_memory_gb": "물리 메모리 GB (숫자, 없으면 null)",\n'
             '  "db_size_gb": "전체 DB 크기 GB (숫자, 없으면 null)",\n'
             '  "instance_config": "인스턴스 구성 설명 (예: 2 (RAC), 없으면 null)",\n'
             '  "awr_metrics": {\n'
             '    "avg_cpu_percent": "평균 CPU 사용률 % (숫자, 없으면 null)",\n'
             '    "peak_cpu_percent": "피크 CPU 사용률 % (숫자, 없으면 null)",\n'
+            '    "avg_cpu_per_s": "평균 CPU/s 초당 CPU 사용량 절대값 (숫자, 없으면 null)",\n'
+            '    "peak_cpu_per_s": "피크(최대) CPU/s 초당 CPU 사용량 절대값 (숫자, 없으면 null)",\n'
             '    "avg_iops": "평균 IOPS (숫자, 없으면 null)",\n'
             '    "peak_iops": "피크 IOPS (숫자, 없으면 null)",\n'
             '    "avg_memory_gb": "평균 메모리 사용량 GB (숫자, 없으면 null)",\n'
             '    "peak_memory_gb": "피크 메모리 사용량 GB (숫자, 없으면 null)",\n'
-            '    "sqlnet_bytes_sent_per_day": "SQL*Net bytes sent 일별 바이트 (숫자, 없으면 null)",\n'
-            '    "sqlnet_bytes_received_per_day": "SQL*Net bytes received 일별 바이트 (숫자, 없으면 null)",\n'
-            '    "redo_bytes_per_day": "Redo 생성량 일별 바이트 (숫자, 없으면 null)"\n'
+            '    "sqlnet_bytes_sent_per_day": "네트워크 송신 일별 바이트. AWR SYSSTAT의 network_outgoing_mb를 일별 바이트로 변환한 값 (숫자, 없으면 null)",\n'
+            '    "sqlnet_bytes_received_per_day": "네트워크 수신 일별 바이트. AWR SYSSTAT의 network_incoming_mb를 일별 바이트로 변환한 값 (숫자, 없으면 null)",\n'
+            '    "redo_bytes_per_day": "Redo 생성량 일별 바이트. AWR MAIN-METRICS의 redo_mb_s를 일별 바이트로 변환한 값 (숫자, 없으면 null)"\n'
             '  },\n'
             '  "sga_analysis": {\n'
             '    "current_sga_gb": "현재 SGA 크기 GB (숫자, 없으면 null)",\n'

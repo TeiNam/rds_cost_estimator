@@ -8,6 +8,7 @@ CLIArgs Pydantic 모델로 변환하여 반환합니다.
 from __future__ import annotations
 
 import argparse
+import os
 
 from rds_cost_estimator.models import CLIArgs
 
@@ -26,11 +27,11 @@ def parse_args(argv: list[str] | None = None) -> CLIArgs:
         description="AWS RDS 이관 비용 예측 도구 - 리포트 파일을 입력받아 비용 분석 MD 리포트를 생성합니다.",
     )
 
-    # 리포트 파일 경로 (필수)
+    # 리포트 파일 또는 디렉토리 경로 (필수)
     parser.add_argument(
         "input_file",
         type=str,
-        help="인스턴스 사양 정보가 담긴 리포트 파일 경로 (PDF/DOCX/TXT/MD)",
+        help="리포트 파일 경로 (PDF/DOCX/TXT/MD) 또는 디렉토리 경로 (폴더 내 모든 지원 파일을 합쳐서 분석)",
     )
 
     # AWS 리전 (기본값: 서울 리전)
@@ -111,13 +112,13 @@ def parse_args(argv: list[str] | None = None) -> CLIArgs:
         help="사용할 AWS CLI 프로파일 이름",
     )
 
-    # Bedrock 모델 ID
+    # Bedrock 모델 ID (.env의 BEDROCK_MODEL_ID 환경변수 우선, 미설정 시 기본값 사용)
     parser.add_argument(
         "--bedrock-model",
         type=str,
-        default="anthropic.claude-sonnet-4-6",
+        default=os.environ.get("BEDROCK_MODEL_ID", "anthropic.claude-sonnet-4-6"),
         dest="bedrock_model",
-        help="AWS Bedrock 모델 ID (기본값: anthropic.claude-sonnet-4-6)",
+        help="AWS Bedrock 모델 ID (기본값: 환경변수 BEDROCK_MODEL_ID 또는 anthropic.claude-sonnet-4-6)",
     )
 
     # 상세 로그 활성화 플래그

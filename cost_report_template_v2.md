@@ -29,6 +29,7 @@
 | 항목 | 평균 | 피크 (P99) |
 |------|------|-----------|
 | CPU 사용률 | {avg_cpu}% | {peak_cpu}% |
+| DB CPU/s | {avg_cpu_per_s} | {peak_cpu_per_s} |
 | I/O 부하 | {avg_iops} IOPS | {peak_iops} IOPS |
 | 메모리 사용량 | {avg_memory} GB | {peak_memory} GB |
 
@@ -96,24 +97,19 @@
 
 | 항목 | 값 |
 |------|-----|
-| 스토리지 타입 | gp3 (범용 SSD) |
-| 기본 IOPS | 3,000 (gp3 기본 제공) |
-| 기본 처리량 | 125 MB/s (gp3 기본 제공) |
-| 프로비저닝 IOPS | {provisioned_iops} (추가 필요 시) |
-| 프로비저닝 처리량 | {provisioned_throughput} MB/s (추가 필요 시) |
+| 스토리지 타입 | {storage_type} |
+{storage_config_rows}
 
 ### 연도별 스토리지 비용 예측
 
 | 항목 | 현재 (0년차) | 1년차 | 2년차 | 3년차 |
 |------|-------------|-------|-------|-------|
 | 예상 DB 크기 | {db_size} GB | {db_size_1y} GB | {db_size_2y} GB | {db_size_3y} GB |
-| gp3 스토리지 비용 | ${stor_cost_0y}/월 | ${stor_cost_1y}/월 | ${stor_cost_2y}/월 | ${stor_cost_3y}/월 |
-| 추가 IOPS 비용 | ${iops_cost}/월 | ${iops_cost}/월 | ${iops_cost}/월 | ${iops_cost}/월 |
-| 추가 처리량 비용 | ${throughput_cost}/월 | ${throughput_cost}/월 | ${throughput_cost}/월 | ${throughput_cost}/월 |
-| **월 스토리지 합계** | **${stor_total_0y}/월** | **${stor_total_1y}/월** | **${stor_total_2y}/월** | **${stor_total_3y}/월** |
+| 스토리지 비용 | ${stor_cost_0y}/월 | ${stor_cost_1y}/월 | ${stor_cost_2y}/월 | ${stor_cost_3y}/월 |
+{storage_extra_cost_rows}| **월 스토리지 합계** | **${stor_total_0y}/월** | **${stor_total_1y}/월** | **${stor_total_2y}/월** | **${stor_total_3y}/월** |
 | **연 스토리지 합계** | **${stor_yearly_0y}** | **${stor_yearly_1y}** | **${stor_yearly_2y}** | **${stor_yearly_3y}** |
 
-> **gp3 요금**: $0.08/GB-월 ({aws_region} 기준). 추가 IOPS: $0.02/IOPS-월 (3,000 초과분). 추가 처리량: $0.04/MB/s-월 (125 MB/s 초과분).
+> **{storage_type} 요금**: {storage_price_per_gb} ({aws_region} 기준). {storage_pricing_detail}
 
 ---
 
@@ -177,9 +173,7 @@
 | 요금 옵션 | 인스턴스/월 | 스토리지/월 | 네트워크/월 | **월 합계** | **연 합계** |
 |-----------|-----------|-----------|-----------|-----------|-----------|
 | **On-Demand** | ${spec_r6i_od_monthly} | ${stor_total_0y} | ${net_monthly} | **${spec_r6i_od_total_monthly}** | **${spec_r6i_od_total_yearly}** |
-| **1년 RI (No Upfront)** | ${spec_r6i_ri1nu_monthly} | ${stor_total_0y} | ${net_monthly} | **${spec_r6i_ri1nu_total_monthly}** | **${spec_r6i_ri1nu_total_yearly}** |
 | **1년 RI (All Upfront)** | ${spec_r6i_ri1au_monthly} | ${stor_total_0y} | ${net_monthly} | **${spec_r6i_ri1au_total_monthly}** | **${spec_r6i_ri1au_total_yearly}** |
-| **3년 RI (No Upfront)** | ${spec_r6i_ri3nu_monthly} | ${stor_total_0y} | ${net_monthly} | **${spec_r6i_ri3nu_total_monthly}** | **${spec_r6i_ri3nu_total_yearly}** |
 | **3년 RI (All Upfront)** | ${spec_r6i_ri3au_monthly} | ${stor_total_0y} | ${net_monthly} | **${spec_r6i_ri3au_total_monthly}** | **${spec_r6i_ri3au_total_yearly}** |
 
 > 네트워크 비용은 {net_scenario} 시나리오 기준입니다. 같은 AZ 배치 시 $0입니다.
@@ -192,7 +186,7 @@
 | **1년 RI (All Upfront)** | ${spec_r6i_maz_ri1au_monthly} | ${stor_maz_total_0y} | ${net_maz_monthly} | **${spec_r6i_maz_ri1au_total_monthly}** | **${spec_r6i_maz_ri1au_total_yearly}** |
 | **3년 RI (All Upfront)** | ${spec_r6i_maz_ri3au_monthly} | ${stor_maz_total_0y} | ${net_maz_monthly} | **${spec_r6i_maz_ri3au_total_monthly}** | **${spec_r6i_maz_ri3au_total_yearly}** |
 
-> ⚠️ Multi-AZ: 스토리지 2배, 네트워크는 복제 트래픽 무료이나 Cross-AZ App 비용은 동일 적용.
+> ⚠️ Multi-AZ: {maz_storage_note}
 
 ### 5-2. r7i 계열 ({spec_r7i_instance})
 
@@ -201,9 +195,7 @@
 | 요금 옵션 | 인스턴스/월 | 스토리지/월 | 네트워크/월 | **월 합계** | **연 합계** |
 |-----------|-----------|-----------|-----------|-----------|-----------|
 | **On-Demand** | ${spec_r7i_od_monthly} | ${stor_total_0y} | ${net_monthly} | **${spec_r7i_od_total_monthly}** | **${spec_r7i_od_total_yearly}** |
-| **1년 RI (No Upfront)** | ${spec_r7i_ri1nu_monthly} | ${stor_total_0y} | ${net_monthly} | **${spec_r7i_ri1nu_total_monthly}** | **${spec_r7i_ri1nu_total_yearly}** |
 | **1년 RI (All Upfront)** | ${spec_r7i_ri1au_monthly} | ${stor_total_0y} | ${net_monthly} | **${spec_r7i_ri1au_total_monthly}** | **${spec_r7i_ri1au_total_yearly}** |
-| **3년 RI (No Upfront)** | ${spec_r7i_ri3nu_monthly} | ${stor_total_0y} | ${net_monthly} | **${spec_r7i_ri3nu_total_monthly}** | **${spec_r7i_ri3nu_total_yearly}** |
 | **3년 RI (All Upfront)** | ${spec_r7i_ri3au_monthly} | ${stor_total_0y} | ${net_monthly} | **${spec_r7i_ri3au_total_monthly}** | **${spec_r7i_ri3au_total_yearly}** |
 
 #### Multi-AZ
@@ -225,9 +217,7 @@
 | 요금 옵션 | 인스턴스/월 | 스토리지/월 | 네트워크/월 | **월 합계** | **연 합계** |
 |-----------|-----------|-----------|-----------|-----------|-----------|
 | **On-Demand** | ${sga_r6i_od_monthly} | ${stor_total_0y} | ${net_monthly} | **${sga_r6i_od_total_monthly}** | **${sga_r6i_od_total_yearly}** |
-| **1년 RI (No Upfront)** | ${sga_r6i_ri1nu_monthly} | ${stor_total_0y} | ${net_monthly} | **${sga_r6i_ri1nu_total_monthly}** | **${sga_r6i_ri1nu_total_yearly}** |
 | **1년 RI (All Upfront)** | ${sga_r6i_ri1au_monthly} | ${stor_total_0y} | ${net_monthly} | **${sga_r6i_ri1au_total_monthly}** | **${sga_r6i_ri1au_total_yearly}** |
-| **3년 RI (No Upfront)** | ${sga_r6i_ri3nu_monthly} | ${stor_total_0y} | ${net_monthly} | **${sga_r6i_ri3nu_total_monthly}** | **${sga_r6i_ri3nu_total_yearly}** |
 | **3년 RI (All Upfront)** | ${sga_r6i_ri3au_monthly} | ${stor_total_0y} | ${net_monthly} | **${sga_r6i_ri3au_total_monthly}** | **${sga_r6i_ri3au_total_yearly}** |
 
 #### Multi-AZ
@@ -245,9 +235,7 @@
 | 요금 옵션 | 인스턴스/월 | 스토리지/월 | 네트워크/월 | **월 합계** | **연 합계** |
 |-----------|-----------|-----------|-----------|-----------|-----------|
 | **On-Demand** | ${sga_r7i_od_monthly} | ${stor_total_0y} | ${net_monthly} | **${sga_r7i_od_total_monthly}** | **${sga_r7i_od_total_yearly}** |
-| **1년 RI (No Upfront)** | ${sga_r7i_ri1nu_monthly} | ${stor_total_0y} | ${net_monthly} | **${sga_r7i_ri1nu_total_monthly}** | **${sga_r7i_ri1nu_total_yearly}** |
 | **1년 RI (All Upfront)** | ${sga_r7i_ri1au_monthly} | ${stor_total_0y} | ${net_monthly} | **${sga_r7i_ri1au_total_monthly}** | **${sga_r7i_ri1au_total_yearly}** |
-| **3년 RI (No Upfront)** | ${sga_r7i_ri3nu_monthly} | ${stor_total_0y} | ${net_monthly} | **${sga_r7i_ri3nu_total_monthly}** | **${sga_r7i_ri3nu_total_yearly}** |
 | **3년 RI (All Upfront)** | ${sga_r7i_ri3au_monthly} | ${stor_total_0y} | ${net_monthly} | **${sga_r7i_ri3au_total_monthly}** | **${sga_r7i_ri3au_total_yearly}** |
 
 #### Multi-AZ
@@ -270,9 +258,7 @@
 |-----------|-------------|-------------|--------------|--------------|
 | | {spec_r6i_instance} | {spec_r7i_instance} | {sga_r6i_instance} | {sga_r7i_instance} |
 | **On-Demand** | ${comp_spec_r6i_od} | ${comp_spec_r7i_od} | ${comp_sga_r6i_od} | ${comp_sga_r7i_od} |
-| **1년 RI (No Upfront)** | ${comp_spec_r6i_ri1nu} | ${comp_spec_r7i_ri1nu} | ${comp_sga_r6i_ri1nu} | ${comp_sga_r7i_ri1nu} |
 | **1년 RI (All Upfront)** | ${comp_spec_r6i_ri1au} | ${comp_spec_r7i_ri1au} | ${comp_sga_r6i_ri1au} | ${comp_sga_r7i_ri1au} |
-| **3년 RI (No Upfront)** | ${comp_spec_r6i_ri3nu} | ${comp_spec_r7i_ri3nu} | ${comp_sga_r6i_ri3nu} | ${comp_sga_r7i_ri3nu} |
 | **3년 RI (All Upfront)** | ${comp_spec_r6i_ri3au} | ${comp_spec_r7i_ri3au} | ${comp_sga_r6i_ri3au} | ${comp_sga_r7i_ri3au} |
 
 ### 3년 TCO 비교 (스토리지 증가분 반영)

@@ -52,6 +52,99 @@ def _find_template() -> Optional[str]:
     return None
 
 
+def _remove_na_rows(content: str) -> str:
+    """테이블에서 N/A만 있는 행을 제거하고, 해당 테이블 아래에 안내 문구를 추가합니다.
+
+    마크다운 테이블의 데이터 행(헤더/구분선 제외)에서:
+    1. 비용 셀($N/A)이 포함된 행 → 제거 + 상품 부재 안내 문구
+    2. 데이터 셀이 모두 N/A인 행 (예: CPU 사용률 | N/A% | N/A%) → 조용히 제거
+    """
+    lines = content.split("\n")
+    result_lines: list[str] = []
+    removed_options: list[str] = []
+    in_table = False
+
+    i = 0
+    while i < len(lines):
+        line = lines[i]
+        stripped = line.strip()
+
+        # 테이블 행 감지 (| 로 시작하고 끝나는 행)
+        if stripped.startswith("|") and stripped.endswith("|"):
+            # 구분선 행 (|---|---|) 은 그대로 유지
+            if re.match(r"^\|[\s\-:|]+\|$", stripped):
+                result_lines.append(line)
+                in_table = True
+                i += 1
+                continue
+
+            # 헤더 행 감지 (다음 줄이 구분선이면 헤더)
+            if i + 1 < len(lines) and re.match(
+                r"^\|[\s\-:|]+\|$", lines[i + 1].strip()
+            ):
+                result_lines.append(line)
+                in_table = True
+                i += 1
+                continue
+
+            # 데이터 행: 비용 셀에 $N/A가 포함되어 있는지 확인
+            if in_table and ("$N/A" in stripped or "**$N/A**" in stripped):
+                # 요금 옵션 이름 추출 (첫 번째 셀)
+                cells = [c.strip() for c in stripped.split("|") if c.strip()]
+                if cells:
+                    option_name = re.sub(r"\*\*", "", cells[0]).strip()
+                    if option_name not in removed_options:
+                        removed_options.append(option_name)
+                # 이 행은 건너뜀 (제거)
+                i += 1
+                continue
+
+            # 데이터 행: 첫 번째 셀(라벨) 제외 나머지 셀이 모두 N/A인지 확인
+            if in_table:
+                cells = [c.strip() for c in stripped.split("|") if c.strip()]
+                if len(cells) >= 2:
+                    data_cells = cells[1:]  # 라벨 제외
+                    # 모든 데이터 셀이 N/A 패턴인지 확인 (N/A, N/A%, N/A GB 등)
+                    all_na = all(
+                        re.match(r"^(?:\*\*)?N/A(?:%| GB| IOPS)?(?:\*\*)?$", c)
+                        for c in data_cells
+                    )
+                    if all_na:
+                        # 조용히 제거 (안내 문구 없이)
+                        i += 1
+                        continue
+
+            in_table = True
+            result_lines.append(line)
+            i += 1
+            continue
+        else:
+            # 테이블이 끝남
+            if in_table and removed_options:
+                # 테이블 직후에 안내 문구 삽입
+                options_str = ", ".join(removed_options)
+                result_lines.append("")
+                result_lines.append(
+                    f"> ℹ️ {options_str} 옵션은 해당 리전/인스턴스 조합에서 "
+                    f"AWS 상품이 제공되지 않아 표시되지 않습니다."
+                )
+                removed_options = []
+            in_table = False
+            result_lines.append(line)
+            i += 1
+
+    # 파일 끝에서 테이블이 끝난 경우
+    if removed_options:
+        options_str = ", ".join(removed_options)
+        result_lines.append("")
+        result_lines.append(
+            f"> ℹ️ {options_str} 옵션은 해당 리전/인스턴스 조합에서 "
+            f"AWS 상품이 제공되지 않아 표시되지 않습니다."
+        )
+
+    return "\n".join(result_lines)
+
+
 class ReportRenderer:
     """비용 비교 결과를 콘솔 표, JSON, Markdown으로 출력하는 클래스."""
 
@@ -227,6 +320,9 @@ class ReportRenderer:
             return match.group(0)
 
         result = re.sub(r"\$\{(\w+)\}", replace_dollar_placeholder, result)
+
+        # N/A만 있는 테이블 행 제거 및 상품 부재 안내 추가
+        result = _remove_na_rows(result)
 
         # 파일 저장
         os.makedirs(os.path.dirname(output_path) or ".", exist_ok=True)

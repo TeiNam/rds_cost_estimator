@@ -1,0 +1,186 @@
+~~BEGIN-OS-INFORMATION~~
+STAT_NAME                                                    STAT_VALUE
+------------------------------------------------------------ ------------------------------------------------------------
+AWR_MINER_VER                                                4.0.11.aws.62
+DB_NAME                                                      LOGISTICS_DW
+DB_UNIQUE_NAME                                               LOGISTICS_DW
+DBID                                                         3456789012
+PLATFORM_NAME                                                Linux x86 64-bit
+VERSION                                                      19.0.0.0.0
+BANNER                                                       Oracle Database 19c Enterprise Edition Release 19.0.0.0.0 - Production
+DATABASE_ROLE                                                PRIMARY
+INSTANCES                                                    1
+INSTANCES_CURRENT                                            1
+HOST_CONNECTED                                               DWSERVER1
+INSTANCE#_CONNECTED                                          1
+HOSTS                                                        DWSERVER1
+HOSTS_CURRENT                                                DWSERVER1
+NUM_CPUS                                                     16
+NUM_CPU_CORES                                                8
+NUM_CPU_SOCKETS                                              1
+PHYSICAL_MEMORY_GB                                           128.00
+TOTAL_DB_SIZE_GB                                             750
+TOTAL_DATAFILE_SIZE_GB                                       720
+TOTAL_TEMPFILE_SIZE_GB                                       30
+USED_DB_SIZE_GB                                              685
+DB_CPU_THREADS_AVERAGE_P99                                   4.2
+DB_CPU_THREADS_PEAKS_50                                      3.5
+DB_CPU_THREADS_PEAKS_90                                      6.8
+DB_HOST_CPU_THREADS_AVERAGE_P99                              8.5
+DB_HOST_CPU_THREADS_PEAKS_50                                 7.2
+DB_HOST_CPU_THREADS_PEAKS_90                                 12.5
+DB_IOPS_AVERAGE_P99                                          1170
+DB_IOPS_PEAKS_P50                                            950
+DB_IOPS_PEAKS_P90                                            2880
+DB_IOMB_AVERAGE_P99                                          63.7
+DB_IOMB_PEAKS_P50                                            52.5
+DB_IOMB_PEAKS_P90                                            125.8
+DB_SGAPGA_TOTAL                                              95.5
+COUNT_DB_LINKS                                               2
+COUNT_LINES_PLSQL                                            35000
+COUNT_SCHEMAS                                                12
+COUNT_PDBS                                                   0
+COUNT_FUNCTION                                               42
+COUNT_INDEX                                                  580
+COUNT_LOB                                                    35
+COUNT_PACKAGE                                                12
+COUNT_PROCEDURE                                              85
+COUNT_SEQUENCE                                               65
+COUNT_TABLE                                                  320
+COUNT_TRIGGER                                                48
+COUNT_TYPE                                                   8
+COUNT_VIEW                                                   125
+MEMORY_TARGET                                                0
+
+~~END-OS-INFORMATION~~
+
+
+..Gathering MEMORY
+
+~~BEGIN-MEMORY~~
+
+   SNAP_ID INSTANCE_NUMBER        SGA        PGA      TOTAL
+---------- --------------- ---------- ---------- ----------
+     30001               1        80.0        8.2       88.2
+     30002               1        80.0       12.5       92.5
+     30003               1        80.0       15.8       95.8
+     30004               1        80.0       25.8      105.8
+     30005               1        80.0       18.2       98.2
+     30006               1        80.0       14.5       94.5
+     30007               1        80.0       20.5      100.5
+     30008               1        80.0       12.8       92.8
+
+~~END-MEMORY~~
+
+
+..Gathering SIZE-ON-DISK
+
+~~BEGIN-SIZE-ON-DISK~~
+
+   SNAP_ID    SIZE_GB
+---------- ----------
+     30001        750
+     30002        750
+     30003        750
+     30004        750
+     30005        750
+     30006        750
+     30007        750
+     30008        750
+
+~~END-SIZE-ON-DISK~~
+
+
+..Gathering MAIN-METRICS
+
+~~BEGIN-MAIN-METRICS~~
+
+      snap      dur_m end                                inst     os_cpu os_cpu_max  os_cpu_sd db_wait_ratio db_cpu_ratio  cpu_per_s cpu_per_s_max cpu_per_s_sd        aas     aas_sd    aas_max    db_time db_time_sd sql_res_t_cs bkgd_t_per_s   logons_s logons_total     exec_s   hard_p_s  l_reads_s  commits_s  read_mb_s read_mb_s_max  read_iops read_iops_max   read_bks read_bks_direct write_mb_s write_mb_s_max write_iops write_iops_max  write_bks write_bks_direct read_nt_mb_s read_nt_mb_s_max read_nt_iops read_nt_iops_max write_nt_mb_s write_nt_mb_s_max write_nt_iops write_nt_iops_max  redo_mb_s db_block_gets_s db_block_changes_s gc_cr_rec_s gc_cu_rec_s gc_cr_get_cs gc_cu_get_cs gc_bk_corrupted gc_bk_lost    px_sess    se_sess s_blk_r_lat h_cpu_per_s h_cpu_per_s_max h_cpu_per_s_sd cell_io_int_mb cell_io_int_mb_max network_mb network_mb_max   PDB_IOPS PDB_IOMBPS    PDB_SGA    PDB_PGA PDB_CPU_USAGE_PER_S
+---------- ---------- ---------------------------- ---------- ---------- ---------- ---------- ------------- ------------ ---------- ------------- ------------ ---------- ---------- ---------- ---------- ---------- ------------ ------------ ---------- ------------ ---------- ---------- ---------- ---------- ---------- ------------- ---------- ------------- ---------- --------------- ---------- -------------- ---------- -------------- ---------- ---------------- ------------ ---------------- ------------ ---------------- ------------- ----------------- ------------- ----------------- ---------- --------------- ------------------ ----------- ----------- ------------ ------------ --------------- ---------- ---------- ---------- ----------- ----------- --------------- -------------- -------------- ------------------ ---------- -------------- ---------- ---------- ---------- ---------- -------------------
+     30001         60 26/02/15 09:00                        1       32.5       55.2        6.5          35.2         64.8      2.850         4.850         .520        3.8        1.0        6.5      320.5       85.5           .1           .5         .3        450.5      850.5       12.5   180000.5       12.5       38.5          65.2      850.5        1050.5      320.5            18.2        1.5           12.5       85.5          320.5       45.5             12.5          3.2             42.5        180.5           1050.5            .5                8.5          35.2             420.5         .0          1800.5             1650.5        18.5        32.5           .0           .0               0          0          0        3.8         .8       3.525           5.250           .625          320.5              850.5       12.5           22.5
+     30002         60 26/02/15 10:00                        1       35.8       58.5        7.2          36.8         63.2      3.150         5.250         .580        4.2        1.2        7.2      350.5       95.5           .1           .6         .3        480.5      920.5       14.5   195000.5       14.5       42.5          72.5      920.5        1150.5      350.5            20.5        1.8           14.5       95.5          350.5       52.5             14.5          3.8             48.5        200.5           1150.5            .6               10.5          42.5             480.5         .0          2050.5             1850.5        20.5        35.5           .0           .0               0          0          0        4.2         1.0       3.825           5.650           .685          350.5              920.5       14.5           25.5
+     30003         60 26/02/15 11:00                        1       42.5       65.8        8.5          38.5         61.5      3.550         5.850         .650        4.8        1.5        8.5      385.5      108.5           .2           .8         .4        520.5     1020.5       16.5   220000.5       16.5       48.5          82.5     1020.5        1350.5      385.5            24.5        2.2           18.5      108.5          385.5       62.5             18.5          4.5             55.5        225.5           1350.5            .8               14.5          52.5             550.5         .0          2350.5             2150.5        24.5        42.5           .0           .0               0          0          0        4.8         1.2       4.225           6.250           .785          385.5             1020.5       18.5           32.5
+     30004         60 26/02/15 12:00                        1       55.2       78.5       12.5          42.5         57.5      4.250         6.850         .850        5.8        1.8       12.5      450.5      125.5           .2          1.0         .5        580.5     1180.5       20.5   280000.5       20.5       58.5         105.5     1180.5        2200.5      680.5            32.5        3.5           25.5      125.5          680.5       85.5             25.5          6.2             72.5        280.5           2200.5           1.2               22.5          72.5             750.5         .0          2850.5             2550.5        32.5        55.5           .0           .0               0          0          0        5.8         1.5       4.825           7.250           .985          450.5             1180.5       25.5           42.5
+     30005         60 26/02/15 13:00                        1       38.5       62.5        8.0          37.5         62.5      3.350         5.550         .620        4.5        1.3        8.0      365.5      102.5           .2           .7         .4        500.5      980.5       15.5   210000.5       15.5       45.5          78.5      980.5        1250.5      365.5            22.5        2.0           16.5      102.5          365.5       58.5             16.5          4.2             52.5        215.5           1250.5            .7               12.5          48.5             520.5         .0          2200.5             2000.5        22.5        38.5           .0           .0               0          0          0        4.5         1.1       4.025           5.950           .725          365.5              980.5       16.5           28.5
+     30006         60 26/02/15 14:00                        1       35.2       58.2        7.0          36.2         63.8      3.050         5.150         .560        4.0        1.1        7.0      340.5       92.5           .1           .6         .3        470.5      900.5       13.5   190000.5       13.5       40.5          70.5      900.5        1100.5      340.5            19.5        1.6           13.5       92.5          340.5       50.5             13.5          3.5             45.5        195.5           1100.5            .5                9.5          40.5             460.5         .0          1950.5             1750.5        19.5        34.5           .0           .0               0          0          0        4.0         .9       3.725           5.450           .655          340.5              900.5       13.5           24.5
+     30007         60 26/02/15 15:00                        1       40.5       65.2        8.2          38.2         61.8      3.450         5.750         .640        4.6        1.4        8.2      375.5      105.5           .2           .7         .4        510.5     1000.5       15.8   215000.5       15.8       46.5          80.5     1000.5        1300.5      375.5            23.5        2.1           17.5      105.5          375.5       60.5             17.5          4.4             54.5        220.5           1300.5            .7               13.5          50.5             540.5         .0          2280.5             2080.5        23.5        40.5           .0           .0               0          0          0        4.6         1.2       4.125           6.150           .755          375.5             1000.5       17.5           30.5
+     30008         60 26/02/15 16:00                        1       34.5       56.8        6.8          35.8         64.2      2.950         5.050         .540        3.9        1.0        6.8      330.5       88.5           .1           .5         .3        460.5      880.5       13.0   185000.5       13.0       39.5          68.5      880.5        1080.5      330.5            18.8        1.5           12.8       88.5          330.5       48.5             12.8          3.4             44.5        188.5           1080.5            .5                9.0          38.5             440.5         .0          1880.5             1720.5        18.8        33.5           .0           .0               0          0          0        3.9         .9       3.625           5.350           .635          330.5              880.5       13.0           23.5
+
+~~END-MAIN-METRICS~~
+
+
+..Gathering TOP-N-TIMED-EVENTS
+
+~~BEGIN-TOP-N-TIMED-EVENTS~~
+
+   SNAP_ID WAIT_CLASS           EVENT_NAME                                                       PCTDBT TOTAL_TIME_S
+---------- -------------------- ------------------------------------------------------------ ---------- ------------
+     30001 DB CPU               DB CPU                                                            62.50    850000000
+     30001 User I/O             db file sequential read                                           12.50    180000000
+     30001 User I/O             db file scattered read                                             8.50    120000000
+     30001 Commit               log file sync                                                      5.25     75000000
+     30001 Other                PGA memory operation                                               3.50     50000000
+     30004 DB CPU               DB CPU                                                            58.50   1050000000
+     30004 User I/O             db file sequential read                                           15.50    280000000
+     30004 User I/O             db file scattered read                                            10.50    185000000
+     30004 Commit               log file sync                                                      6.25     95000000
+     30004 Other                PGA memory operation                                               4.50     65000000
+
+~~END-TOP-N-TIMED-EVENTS~~
+
+
+..Gathering SYSSTAT
+
+~~BEGIN-SYSSTAT~~
+
+   SNAP_ID cell_flash_hits  read_iops write_iops    read_mb read_mb_opt read_nt_iops write_nt_iops read_nt_mb write_nt_mb cell_int_mb cell_int_ss_mb cell_si_save_mb cell_bytes_elig_mb cell_hcc_bytes_mb read_multi_iops read_temp_iops write_temp_iops network_incoming_mb network_outgoing_mb
+---------- --------------- ---------- ---------- ---------- ----------- ------------ ------------- ---------- ----------- ----------- -------------- --------------- ------------------ ----------------- --------------- -------------- --------------- ------------------- -------------------
+     30001               0        850        320         38           0          845           315         36          15           0              0               0                  0                 0             120             45              55                  85                 125
+     30002               0        920        350         42           0          915           345         40          18           0              0               0                  0                 0             135             52              62                  92                 138
+     30003               0       1020        385         48           0         1015           380         46          22           0              0               0                  0                 0             155             62              72                 105                 158
+     30004               0       2200        680         58           0         2195           675         56          32           0              0               0                  0                 0             250             85              95                 145                 215
+     30005               0        980        365         45           0          975           360         43          20           0              0               0                  0                 0             145             58              68                  98                 148
+     30006               0        900        340         40           0          895           335         38          16           0              0               0                  0                 0             130             50              58                  90                 132
+     30007               0       1000        375         46           0          995           370         44          21           0              0               0                  0                 0             150             60              70                 102                 152
+     30008               0        880        330         38           0          875           325         36          15           0              0               0                  0                 0             125             48              55                  88                 128
+
+~~END-SYSSTAT~~
+
+
+..Gathering FEATURES
+
+~~BEGIN-FEATURES~~
+
+NAME                                                             DETECTED_USAGES TOTAL_SAMPLES CURRENTLY_  AUX_COUNT LAST_SAMPLE_DATE                 FEATURE_INFO
+---------------------------------------------------------------- --------------- ------------- ---------- ---------- -------------------------------- ----------------
+ADDM                                                                           5           100 TRUE                0 15-2월-2026
+AWR Report                                                                     5           100 TRUE                3 15-2월-2026
+Adaptive Plans                                                               100           100 TRUE                  15-2월-2026
+Automatic Maintenance - Optimizer Statistics Gathering                       100           100 TRUE              150 15-2월-2026
+Automatic SGA Tuning                                                         100           100 TRUE                0 15-2월-2026
+Automatic Undo Management                                                    100           100 TRUE                2 15-2월-2026
+Character Set                                                                100           100 TRUE                  15-2월-2026                     AL32UTF8
+Job Scheduler                                                                 95           100 TRUE                2 15-2월-2026
+LOB                                                                           85           100 TRUE                  15-2월-2026
+Locally Managed Tablespaces (system)                                         100           100 TRUE               25 15-2월-2026
+Recovery Manager (RMAN)                                                      100           100 TRUE                1 15-2월-2026
+Result Cache                                                                  75           100 TRUE               12 15-2월-2026
+SecureFiles (system)                                                         100           100 TRUE              180 15-2월-2026
+SecureFiles (user)                                                            90           100 TRUE              250 15-2월-2026
+Server Parameter File                                                        100           100 TRUE                  15-2월-2026
+
+~~END-FEATURES~~
+
+
+..Gathering SGA-ADVICE
+
+~~BEGIN-SGA-ADVICE~~
+
+        INST_ID        SGA_SIZE SGA_SIZE_FACTOR    ESTD_DB_TIME ESTD_DB_TIME_FACTOR ESTD_PHYSICAL_READS ESTD_BUFFER_CACHE_SIZE ESTD_SHARED_POOL_SIZE          CON_ID      SGA_TARGET
+--------------- --------------- --------------- --------------- ------------------- ------------------- ---------------------- --------------------- --------------- ---------------
+              1              64             0.80          385000                1.20            58000000                     48                    12               0              80
+              1              80             1.00          320000                1.00            45000000                     64                    16               0              80
+              1              96             1.20          265000                0.83            32000000                     76                    20               0              80
+              1             112             1.40          258000                0.81            30500000                     88                    24               0              80
+
+~~END-SGA-ADVICE~~

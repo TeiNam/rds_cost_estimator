@@ -47,6 +47,17 @@ GP3_THROUGHPUT_PER_MBPS = 0.04  # 125 MB/s 초과분
 GP3_BASE_IOPS = 3000
 GP3_BASE_THROUGHPUT = 125  # MB/s
 
+# Aurora 클러스터 스토리지 요금 (ap-northeast-2 기준, USD)
+# Aurora Standard: I/O 요청당 과금, 스토리지 $0.10/GB-월
+# Aurora I/O-Optimized: I/O 무료, 스토리지 $0.13/GB-월 (30% 할증)
+# Aurora는 3AZ 6카피 복제가 기본 포함 → Multi-AZ 스토리지 추가 비용 없음
+AURORA_STORAGE_PER_GB = 0.10  # Aurora Standard 기준
+AURORA_IO_PER_MILLION = 0.20  # I/O 요청 100만 건당 (Aurora Standard)
+AURORA_BACKUP_PER_GB = 0.021  # 백업 스토리지 (보관 기간 초과분)
+
+# Aurora 엔진 목록 (클러스터 스토리지 사용)
+AURORA_ENGINES = {"aurora-postgresql", "aurora-mysql"}
+
 # 네트워크 비용 상수
 NET_CROSS_AZ_PER_GB = 0.01
 NET_CROSS_REGION_PER_GB = 0.02
@@ -133,6 +144,24 @@ def calc_storage_costs(
         "total": round(storage_cost + iops_cost + throughput_cost, 2),
     }
 
+def calc_aurora_storage_costs(db_size_gb: float) -> dict:
+    """Aurora 클러스터 스토리지 월간 비용 계산.
+
+    Aurora는 gp3와 달리:
+    - IOPS/처리량 프로비저닝 개념 없음 (자동 확장)
+    - 3AZ 6카피 복제가 기본 포함 → Multi-AZ 추가 스토리지 비용 없음
+    - I/O 비용은 워크로드에 따라 달라지므로 별도 표기
+    """
+    storage_cost = db_size_gb * AURORA_STORAGE_PER_GB
+
+    return {
+        "storage": round(storage_cost, 2),
+        "iops": 0.0,       # Aurora는 IOPS 프로비저닝 없음
+        "throughput": 0.0,  # Aurora는 처리량 프로비저닝 없음
+        "total": round(storage_cost, 2),
+    }
+
+
 
 class Estimator:
     """비용 예측기 핵심 오케스트레이션 클래스."""
@@ -212,7 +241,11 @@ class Estimator:
             self._args.recommended_instance_by_sga = parsed.recommended_instance_by_sga
         if self._args.on_prem_cost is None and parsed.on_prem_cost is not None:
             self._args.on_prem_cost = parsed.on_prem_cost
-        if parsed.engine is not None and self._args.engine == "oracle-ee":
+        # 타겟 엔진 결정: target_engine > engine (소스 엔진은 무시)
+        if parsed.target_engine is not None:
+            self._args.engine = parsed.target_engine
+        elif parsed.engine is not None and self._args.engine == "oracle-ee":
+            # target_engine이 없으면 기존 로직 유지 (소스 엔진 사용)
             self._args.engine = parsed.engine
 
     async def run(self) -> CostTable:
@@ -424,8 +457,17 @@ class Estimator:
 
         # AWR 성능 메트릭
         awr = parsed.awr_metrics
-        data["avg_cpu"] = awr.avg_cpu_percent or "N/A"
-        data["peak_cpu"] = awr.peak_cpu_percent or "N/A"
+
+        # CPU 사용률: 퍼센트 값이 있으면 그대로 사용, 없으면 CPU/s 값을 표시
+        avg_cpu = awr.avg_cpu_percent
+        peak_cpu = awr.peak_cpu_percent
+
+        data["avg_cpu"] = avg_cpu or "N/A"
+        data["peak_cpu"] = peak_cpu or "N/A"
+
+        # CPU/s (초당 DB CPU 사용량) - 참고 메트릭으로 추가
+        data["avg_cpu_per_s"] = awr.avg_cpu_per_s or "N/A"
+        data["peak_cpu_per_s"] = awr.peak_cpu_per_s or "N/A"
         data["avg_iops"] = awr.avg_iops or "N/A"
         data["peak_iops"] = awr.peak_iops or "N/A"
         data["avg_memory"] = awr.avg_memory_gb or "N/A"
@@ -461,10 +503,51 @@ class Estimator:
         # 스토리지 비용
         prov_iops = parsed.provisioned_iops or 0
         prov_tp = parsed.provisioned_throughput_mbps or 0
-        data["provisioned_iops"] = prov_iops if prov_iops else "없음"
-        data["provisioned_throughput"] = prov_tp if prov_tp else "없음"
 
+        if args.engine in AURORA_ENGINES:
+            # Aurora: 클러스터 스토리지 (IOPS/처리량 프로비저닝 없음)
+            data["storage_type"] = "Aurora 클러스터 스토리지"
+            data["storage_price_per_gb"] = "$0.10/GB-월"
+            data["storage_pricing_detail"] = "Aurora I/O-Optimized 선택 시 $0.13/GB-월 (I/O 무료)."
+            data["provisioned_iops"] = "해당 없음"
+            data["provisioned_throughput"] = "해당 없음"
+            data["storage_note"] = "Aurora는 3AZ 6카피 복제가 기본 포함되어 Multi-AZ 추가 스토리지 비용이 없습니다."
+            data["maz_storage_note"] = (
+                "Aurora는 3AZ 6카피 복제가 기본 포함되어 스토리지 추가 비용이 없습니다. "
+                "네트워크는 복제 트래픽 무료이나 Cross-AZ App 비용은 동일 적용."
+            )
+            data["storage_config_rows"] = (
+                "| 스토리지 단가 | $0.10/GB-월 (Aurora Standard) |\n"
+                "| I/O 과금 | Aurora Standard: $0.20/100만 요청, I/O-Optimized: 무료 |\n"
+                "| 복제 | 3AZ 6카피 자동 복제 (추가 비용 없음) |"
+            )
+            data["storage_extra_cost_rows"] = ""
+        else:
+            data["storage_type"] = "gp3 (범용 SSD)"
+            data["storage_price_per_gb"] = "$0.08/GB-월"
+            data["storage_pricing_detail"] = "추가 IOPS: $0.02/IOPS-월 (3,000 초과분). 추가 처리량: $0.04/MB/s-월 (125 MB/s 초과분)."
+            data["provisioned_iops"] = prov_iops if prov_iops else "없음"
+            data["provisioned_throughput"] = prov_tp if prov_tp else "없음"
+            data["storage_note"] = ""
+            data["maz_storage_note"] = "스토리지 2배, 네트워크는 복제 트래픽 무료이나 Cross-AZ App 비용은 동일 적용."
+            data["storage_config_rows"] = (
+                "| 기본 IOPS | 3,000 (gp3 기본 제공) |\n"
+                "| 기본 처리량 | 125 MB/s (gp3 기본 제공) |\n"
+                f"| 프로비저닝 IOPS | {prov_iops if prov_iops else '없음'} (추가 필요 시) |\n"
+                f"| 프로비저닝 처리량 | {prov_tp if prov_tp else '없음'} MB/s (추가 필요 시) |"
+            )
+
+        # 스토리지 비용 계산 (iops_cost, throughput_cost 등 설정)
         self._fill_storage_costs(data, db_size, growth_rate, prov_iops, prov_tp)
+
+        # gp3 추가 비용 행은 _fill_storage_costs 이후에 설정 (iops_cost/throughput_cost 참조)
+        if args.engine not in AURORA_ENGINES:
+            data["storage_extra_cost_rows"] = (
+                f"| 추가 IOPS 비용 | ${data['iops_cost']}/월 | ${data['iops_cost']}/월 "
+                f"| ${data['iops_cost']}/월 | ${data['iops_cost']}/월 |\n"
+                f"| 추가 처리량 비용 | ${data['throughput_cost']}/월 | ${data['throughput_cost']}/월 "
+                f"| ${data['throughput_cost']}/월 | ${data['throughput_cost']}/월 |\n"
+            )
 
         # 네트워크 비용 (DuckDB에서 조회)
         self._fill_network_costs(data, growth_rate)
@@ -485,18 +568,34 @@ class Estimator:
 
     def _fill_storage_costs(self, data: dict, db_size: float, growth_rate: float,
                             prov_iops: int, prov_tp: float) -> None:
-        """연도별 스토리지 비용을 계산하여 data에 채웁니다."""
+        """연도별 스토리지 비용을 계산하여 data에 채웁니다.
+
+        Aurora 엔진인 경우 클러스터 스토리지 요금을 적용하고,
+        그 외 엔진은 gp3 스토리지 요금을 적용합니다.
+        """
+        is_aurora = self._args.engine in AURORA_ENGINES
+
         for year in range(4):
             size = db_size * (1 + growth_rate) ** year if db_size else 0
-            costs = calc_storage_costs(size, prov_iops, prov_tp)
+
+            if is_aurora:
+                costs = calc_aurora_storage_costs(size)
+            else:
+                costs = calc_storage_costs(size, prov_iops, prov_tp)
+
             suffix = f"_{year}y"
             data[f"stor_cost{suffix}"] = f"{costs['storage']:,.2f}"
             data["iops_cost"] = f"{costs['iops']:,.2f}"
             data["throughput_cost"] = f"{costs['throughput']:,.2f}"
             data[f"stor_total{suffix}"] = f"{costs['total']:,.2f}"
             data[f"stor_yearly{suffix}"] = f"{costs['total'] * 12:,.2f}"
-            # Multi-AZ 스토리지 (2배)
-            data[f"stor_maz_total{suffix}"] = f"{costs['total'] * 2:,.2f}"
+
+            if is_aurora:
+                # Aurora는 3AZ 6카피 복제가 기본 포함 → Multi-AZ 추가 스토리지 비용 없음
+                data[f"stor_maz_total{suffix}"] = f"{costs['total']:,.2f}"
+            else:
+                # RDS: Multi-AZ 스토리지 2배
+                data[f"stor_maz_total{suffix}"] = f"{costs['total'] * 2:,.2f}"
 
     def _fill_network_costs(self, data: dict, growth_rate: float) -> None:
         """DuckDB에서 네트워크 트래픽을 조회하여 비용을 계산합니다."""
@@ -625,9 +724,7 @@ class Estimator:
 
         pricing_options = [
             ("od", PricingType.ON_DEMAND),
-            ("ri1nu", PricingType.RI_1YR_NO_UPFRONT),
             ("ri1au", PricingType.RI_1YR_ALL_UPFRONT),
-            ("ri3nu", PricingType.RI_3YR_NO_UPFRONT),
             ("ri3au", PricingType.RI_3YR_ALL_UPFRONT),
         ]
 
@@ -673,8 +770,8 @@ class Estimator:
             ("sga", "r6i"), ("sga", "r7i"),
         ]
         options = [
-            ("od", "od"), ("ri1nu", "ri1nu"), ("ri1au", "ri1au"),
-            ("ri3nu", "ri3nu"), ("ri3au", "ri3au"),
+            ("od", "od"), ("ri1au", "ri1au"),
+            ("ri3au", "ri3au"),
         ]
         for prefix, family in combos:
             for comp_key, opt_key in options:
@@ -685,11 +782,16 @@ class Estimator:
     def _fill_tco(self, data: dict, db_size: float, growth_rate: float,
                   prov_iops: int, prov_tp: float) -> None:
         """3년 TCO 비교 데이터를 채웁니다."""
+        is_aurora = self._args.engine in AURORA_ENGINES
+
         # 연도별 스토리지 비용
         yearly_stor: list[float] = []
         for year in range(3):
             size = db_size * (1 + growth_rate) ** year if db_size else 0
-            costs = calc_storage_costs(size, prov_iops, prov_tp)
+            if is_aurora:
+                costs = calc_aurora_storage_costs(size)
+            else:
+                costs = calc_storage_costs(size, prov_iops, prov_tp)
             yearly_stor.append(costs["total"] * 12)
 
         stor_3yr_total = sum(yearly_stor)

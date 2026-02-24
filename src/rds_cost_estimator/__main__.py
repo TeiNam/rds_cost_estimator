@@ -22,8 +22,24 @@ logger = logging.getLogger(__name__)
 
 
 def _derive_output_basename(input_file: str) -> str:
-    """입력 파일명에서 출력 파일 기본 이름을 생성합니다."""
+    """입력 파일명에서 출력 파일 기본 이름을 생성합니다.
+
+    상위 디렉토리명을 접두사로 포함하여 파일 충돌을 방지합니다.
+    디렉토리 입력 시 디렉토리명을 기본 이름으로 사용합니다.
+    예: sample_reports/sample_03_postgresql/dbcsi_report.md
+        → sample_03_postgresql_dbcsi_report_cost
+    예: sample_reports/sample_03_postgresql/
+        → sample_03_postgresql_cost
+    """
+    abs_path = os.path.abspath(input_file)
+    if os.path.isdir(abs_path):
+        # 디렉토리 입력: 디렉토리명을 기본 이름으로 사용
+        dir_name = os.path.basename(abs_path.rstrip(os.sep))
+        return f"{dir_name}_cost"
     basename = os.path.splitext(os.path.basename(input_file))[0]
+    parent_dir = os.path.basename(os.path.dirname(abs_path))
+    if parent_dir and parent_dir != ".":
+        return f"{parent_dir}_{basename}_cost"
     return f"{basename}_cost"
 
 
@@ -37,8 +53,8 @@ def main() -> None:
         4. 템플릿 v2 기반 MD 리포트 생성
         5. --json 지정 시 JSON 파일도 생성
     """
-    args = parse_args()
     load_dotenv()
+    args = parse_args()
 
     log_level = logging.DEBUG if args.verbose else logging.INFO
     logging.basicConfig(

@@ -47,9 +47,13 @@ dmypy.json
 .DS_Store
 Thumbs.db
 
+# Kiro
+.kiro/
+
 # 환경변수
 .env
 .env.*
+!.env.example
 
 # 출력 파일
 *.json
@@ -57,3 +61,4 @@ Thumbs.db
 
 # 로그
 *.log
+output/

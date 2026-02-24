@@ -48,6 +48,10 @@ ENGINE_NAMES: dict[str, str] = {
     "mysql": "MySQL",
     "postgres": "PostgreSQL",
     "mariadb": "MariaDB",
+    "sqlserver-ee": "SQL Server",
+    "sqlserver-se": "SQL Server",
+    "sqlserver-ex": "SQL Server",
+    "sqlserver-web": "SQL Server",
 }
 
 # 엔진 코드 → 라이선스 모델 매핑
@@ -59,6 +63,19 @@ LICENSE_MODELS: dict[str, str] = {
     "mysql": "General Public License",
     "postgres": "PostgreSQL License",
     "mariadb": "General Public License",
+    "sqlserver-ee": "License Included",
+    "sqlserver-se": "License Included",
+    "sqlserver-ex": "License Included",
+    "sqlserver-web": "License Included",
+}
+
+
+# 엔진 코드 → AWS Pricing API databaseEdition 매핑 (에디션 구분이 필요한 엔진만)
+DATABASE_EDITIONS: dict[str, str] = {
+    "sqlserver-ee": "Enterprise",
+    "sqlserver-se": "Standard",
+    "sqlserver-ex": "Express",
+    "sqlserver-web": "Web",
 }
 
 
@@ -155,6 +172,15 @@ class PricingClient:
                 "Type": "TERM_MATCH",
                 "Field": "licenseModel",
                 "Value": license_model,
+            })
+
+        # DB 에디션 필터 추가 (SQL Server 에디션 구분 등)
+        db_edition = DATABASE_EDITIONS.get(spec.engine)
+        if db_edition:
+            filters.append({
+                "Type": "TERM_MATCH",
+                "Field": "databaseEdition",
+                "Value": db_edition,
             })
 
         return filters
@@ -611,17 +637,13 @@ class PricingClient:
         records: list[CostRecord] = []
         pricing_types = [
             PricingType.ON_DEMAND,
-            PricingType.RI_1YR_NO_UPFRONT,
             PricingType.RI_1YR_ALL_UPFRONT,
-            PricingType.RI_3YR_NO_UPFRONT,
             PricingType.RI_3YR_ALL_UPFRONT,
         ]
 
         # RI 타입 → (lease_length, purchase_option) 매핑
         ri_params = {
-            PricingType.RI_1YR_NO_UPFRONT: ("1yr", "No Upfront"),
             PricingType.RI_1YR_ALL_UPFRONT: ("1yr", "All Upfront"),
-            PricingType.RI_3YR_NO_UPFRONT: ("3yr", "No Upfront"),
             PricingType.RI_3YR_ALL_UPFRONT: ("3yr", "All Upfront"),
         }
 
