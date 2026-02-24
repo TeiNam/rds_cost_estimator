@@ -1,0 +1,289 @@
+~~BEGIN-OS-INFORMATION~~
+STAT_NAME                                                    STAT_VALUE
+------------------------------------------------------------ ------------------------------------------------------------
+AWR_MINER_VER                                                4.0.11.aws.62
+DB_NAME                                                      ENTERPRISE_ERP
+DB_UNIQUE_NAME                                               ENTERPRISE_ERP
+DBID                                                         1234567890
+PLATFORM_NAME                                                Linux x86 64-bit
+VERSION                                                      19.0.0.0.0
+BANNER                                                       Oracle Database 19c Enterprise Edition Release 19.0.0.0.0 - Production
+DATABASE_ROLE                                                PRIMARY
+INSTANCES                                                    2
+INSTANCES_CURRENT                                            2
+HOST_CONNECTED                                               ERPSERVER1
+INSTANCE#_CONNECTED                                          1
+HOSTS                                                        ERPSERVER1,ERPSERVER2
+HOSTS_CURRENT                                                ERPSERVER1,ERPSERVER2
+NUM_CPUS                                                     16
+NUM_CPU_CORES                                                8
+NUM_CPU_SOCKETS                                              2
+PHYSICAL_MEMORY_GB                                           256.00
+GLOBAL_CPU_COUNT                                             32
+GLOBAL_CPU_CORE_COUNT                                        16
+GLOBAL_CPU_SOCKET_COUNT                                      4
+TOTAL_DB_SIZE_GB                                             3305
+TOTAL_DATAFILE_SIZE_GB                                       3273
+TOTAL_TEMPFILE_SIZE_GB                                       32
+USED_DB_SIZE_GB                                              3132
+DB_CPU_THREADS_AVERAGE_P99                                   6.5
+DB_CPU_THREADS_PEAKS_50                                      5.2
+DB_CPU_THREADS_PEAKS_90                                      8.1
+DB_HOST_CPU_THREADS_AVERAGE_P99                              12.5
+DB_HOST_CPU_THREADS_PEAKS_50                                 10.2
+DB_HOST_CPU_THREADS_PEAKS_90                                 15.8
+DB_IOPS_AVERAGE_P99                                          10700
+DB_IOPS_PEAKS_P50                                            8500
+DB_IOPS_PEAKS_P90                                            15200
+DB_IOMB_AVERAGE_P99                                          850.5
+DB_IOMB_PEAKS_P50                                            680.2
+DB_IOMB_PEAKS_P90                                            1250.8
+DB_SGAPGA_TOTAL                                              200.5
+DB_EXA_CELL_BYTES_ELIG_MB_P99                                0
+DB_EXA_CELL_SI_SAVE_MB_P99                                   0
+DB_EXA_CELL_INT_MB_P99                                       0
+DB_EXA_CELL_INT_SS_MB_P99                                    0
+DB_EXA_CELL_HCC_BYTES_MB_P99                                 0
+DB_EXA_READ_MB_P99                                           0
+DB_EXA_READ_MB_OPT_P99                                       0
+DB_EXA_READ_MULTI_P99                                        0
+DB_EXA_READ_TEMP_P99                                         0
+DB_EXA_WRITE_TEMP_P99                                        0
+COUNT_DB_LINKS                                               3
+COUNT_LINES_PLSQL                                            1159745
+COUNT_SCHEMAS                                                34
+COUNT_PDBS                                                   0
+COUNT_FUNCTION                                               715
+COUNT_INDEX                                                  8561
+COUNT_LOB                                                    1180
+COUNT_PACKAGE                                                103
+COUNT_PROCEDURE                                              1055
+COUNT_SEQUENCE                                               701
+COUNT_TABLE                                                  5062
+COUNT_TRIGGER                                                1036
+COUNT_TYPE                                                   114
+COUNT_TYPE BODY                                              2
+COUNT_VIEW                                                   746
+COUNT_TABLES_HCC                                             0
+COUNT_BITMAP_INDEX                                           0
+COUNT_MATVIEWS_REWRITE_ENABLED                               28
+COUNT_VPD_POLICIES                                           0
+FEATURE_Parallel SQL Query Execution                         Yes
+FEATURE_Real Application Clusters (RAC)                      Yes
+DEBUG_MODULE                                                 sqlplus.exe
+DEBUG_PROGRAM                                                sqlplus.exe
+DEBUG_CONTAINER
+DEBUG_SQLPLUS                                                1903000000
+DEBUG_CDB_OR_DBA_COL                                         DBA
+DEBUG_awr_pdb_autoflush_enabled                              FALSE
+DEBUG_control_management_pack_access                         DIAGNOSTIC+TUNING
+MEMORY_TARGET                                                0
+NLS_COMP                                                     BINARY
+NLS_SORT                                                     BINARY
+SGA_TARGET                                                   171798691840
+DEBUG_statistics_level                                       TYPICAL
+DEBUG_timed_statistics                                       TRUE
+~~END-OS-INFORMATION~~
+
+
+..Gathering MEMORY
+
+~~BEGIN-MEMORY~~
+
+   SNAP_ID INSTANCE_NUMBER        SGA        PGA      TOTAL
+---------- --------------- ---------- ---------- ----------
+     10001               1       160.2       20.5      180.7
+     10001               2       160.0       19.8      179.8
+     10002               1       160.2       21.2      181.4
+     10002               2       160.0       20.5      180.5
+     10003               1       160.2       22.0      182.2
+     10003               2       160.0       21.0      181.0
+
+~~END-MEMORY~~
+
+
+..Gathering SIZE-ON-DISK
+
+~~BEGIN-SIZE-ON-DISK~~
+
+   SNAP_ID    SIZE_GB
+---------- ----------
+     10001       3305
+     10002       3305
+     10003       3305
+
+~~END-SIZE-ON-DISK~~
+
+
+..Gathering MAIN-METRICS
+
+~~BEGIN-MAIN-METRICS~~
+
+      snap      dur_m end                                inst     os_cpu os_cpu_max  os_cpu_sd db_wait_ratio db_cpu_ratio  cpu_per_s cpu_per_s_max cpu_per_s_sd        aas     aas_sd    aas_max    db_time db_time_sd sql_res_t_cs bkgd_t_per_s   logons_s logons_total     exec_s   hard_p_s  l_reads_s  commits_s  read_mb_s read_mb_s_max  read_iops read_iops_max   read_bks read_bks_direct write_mb_s write_mb_s_max write_iops write_iops_max  write_bks write_bks_direct read_nt_mb_s read_nt_mb_s_max read_nt_iops read_nt_iops_max write_nt_mb_s write_nt_mb_s_max write_nt_iops write_nt_iops_max  redo_mb_s db_block_gets_s db_block_changes_s gc_cr_rec_s gc_cu_rec_s gc_cr_get_cs gc_cu_get_cs gc_bk_corrupted gc_bk_lost    px_sess    se_sess s_blk_r_lat h_cpu_per_s h_cpu_per_s_max h_cpu_per_s_sd cell_io_int_mb cell_io_int_mb_max network_mb network_mb_max   PDB_IOPS PDB_IOMBPS    PDB_SGA    PDB_PGA PDB_CPU_USAGE_PER_S
+---------- ---------- ---------------------------- ---------- ---------- ---------- ---------- ------------- ------------ ---------- ------------- ------------ ---------- ---------- ---------- ---------- ---------- ------------ ------------ ---------- ------------ ---------- ---------- ---------- ---------- ---------- ------------- ---------- ------------- ---------- --------------- ---------- -------------- ---------- -------------- ---------- ---------------- ------------ ---------------- ------------ ---------------- ------------- ----------------- ------------- ----------------- ---------- --------------- ------------------ ----------- ----------- ------------ ------------ --------------- ---------- ---------- ---------- ----------- ----------- --------------- -------------- -------------- ------------------ ---------- -------------- ---------- ---------- ---------- ---------- -------------------
+     10001         60 26/01/15 09:00                        1       45.2       72.5        8.5          28.5         71.5      3.125         5.250         .625        4.5        1.2        8.5      450.5      125.5           .2           .8         .5        850.5     1250.5       18.5   425000.5       52.5        8.5          85.5      425.5        8500.5      650.5            45.5        2.5           25.5      125.5          850.5       85.5             25.5          5.5             75.5        400.5           8450.5            .8               15.5          65.5             750.5         .5          3500.5             3250.5        32.5        55.5           .2           .2               0          0          0        6.5         1.2       4.525           7.250           .925          450.5             1550.5        1.5            3.5
+     10001         60 26/01/15 09:00                        2       42.5       68.5        7.8          26.5         73.5      2.925         4.850         .585        4.2        1.1        7.8      420.5      118.5           .2           .7         .5        820.5     1180.5       17.5   410000.5       48.5        7.8          78.5      395.5        7850.5      620.5            42.5        2.2           22.5      115.5          780.5       78.5             22.5          5.2             72.5        380.5           7800.5            .7               14.5          62.5             720.5         .5          3250.5             3050.5        30.5        52.5           .2           .2               0          0          0        6.2         1.1       4.325           6.850           .885          420.5             1450.5        1.4            3.2
+     10002         60 26/01/15 10:00                        1       48.5       75.5        9.2          30.5         69.5      3.425         5.650         .685        4.8        1.4        9.2      480.5      135.5           .2           .9         .5        880.5     1320.5       19.5   450000.5       55.5        9.2          92.5      455.5        9200.5      680.5            48.5        2.8           28.5      135.5          920.5       92.5             28.5          6.2             82.5        430.5           9150.5            .9               18.5          72.5             820.5         .6          3750.5             3450.5        35.5        58.5           .3           .2               0          0          0        7.2         1.4       4.825           7.650           .985          480.5             1650.5        1.6            3.8
+     10002         60 26/01/15 10:00                        2       45.5       72.5        8.5          28.5         71.5      3.125         5.250         .625        4.5        1.2        8.5      450.5      125.5           .2           .8         .5        850.5     1250.5       18.5   425000.5       52.5        8.5          85.5      425.5        8500.5      650.5            45.5        2.5           25.5      125.5          850.5       85.5             25.5          5.5             75.5        400.5           8450.5            .8               15.5          65.5             750.5         .5          3500.5             3250.5        32.5        55.5           .2           .2               0          0          0        6.5         1.2       4.525           7.250           .925          450.5             1550.5        1.5            3.5
+     10003         60 26/01/15 11:00                        1       52.5       78.5       10.5          32.5         67.5      3.725         6.050         .745        5.2        1.6       10.5      520.5      145.5           .2          1.0         .6        920.5     1420.5       20.5   480000.5       58.5       10.5         105.5      485.5       10500.5      720.5            52.5        3.2           32.5      145.5         1050.5      105.5             32.5          7.2             92.5        460.5          10450.5           1.0               22.5          82.5             920.5         .7          4050.5             3750.5        38.5        62.5           .3           .3               0          0          0        7.8         1.6       5.225           8.050          1.045          520.5             1750.5        1.8            4.2
+     10003         60 26/01/15 11:00                        2       48.5       75.5        9.2          30.5         69.5      3.425         5.650         .685        4.8        1.4        9.2      480.5      135.5           .2           .9         .5        880.5     1320.5       19.5   450000.5       55.5        9.2          92.5      455.5        9200.5      680.5            48.5        2.8           28.5      135.5          920.5       92.5             28.5          6.2             82.5        430.5           9150.5            .9               18.5          72.5             820.5         .6          3750.5             3450.5        35.5        58.5           .3           .2               0          0          0        7.2         1.4       4.825           7.650           .985          480.5             1650.5        1.6            3.8
+
+~~END-MAIN-METRICS~~
+
+
+..Gathering TOP-N-TIMED-EVENTS
+
+~~BEGIN-TOP-N-TIMED-EVENTS~~
+
+   SNAP_ID WAIT_CLASS           EVENT_NAME                                                       PCTDBT TOTAL_TIME_S
+---------- -------------------- ------------------------------------------------------------ ---------- ------------
+     10001 DB CPU               DB CPU                                                            68.50   8500000000
+     10001 User I/O             db file sequential read                                            8.50    850000000
+     10001 Commit               log file sync                                                      5.25    525000000
+     10001 Cluster              gc cr multi block grant                                            4.50    450000000
+     10001 Other                RMA: IPC0 completion sync                                          3.25    325000000
+     10002 DB CPU               DB CPU                                                            65.50   9200000000
+     10002 User I/O             db file sequential read                                            9.50    950000000
+     10002 Commit               log file sync                                                      6.25    625000000
+     10002 Cluster              gc cr multi block grant                                            5.50    550000000
+     10002 Other                enq: IV -  contention                                              3.75    375000000
+     10003 DB CPU               DB CPU                                                            62.50  10500000000
+     10003 User I/O             db file sequential read                                           10.50   1050000000
+     10003 Commit               log file sync                                                      7.25    725000000
+     10003 Cluster              gc cr multi block grant                                            6.50    650000000
+     10003 System I/O           log file parallel write                                            4.25    425000000
+
+~~END-TOP-N-TIMED-EVENTS~~
+
+
+..Gathering SYSSTAT
+
+~~BEGIN-SYSSTAT~~
+
+   SNAP_ID cell_flash_hits  read_iops write_iops    read_mb read_mb_opt read_nt_iops write_nt_iops read_nt_mb write_nt_mb cell_int_mb cell_int_ss_mb cell_si_save_mb cell_bytes_elig_mb cell_hcc_bytes_mb read_multi_iops read_temp_iops write_temp_iops network_incoming_mb network_outgoing_mb
+---------- --------------- ---------- ---------- ---------- ----------- ------------ ------------- ---------- ----------- ----------- -------------- --------------- ------------------ ----------------- --------------- -------------- --------------- ------------------- -------------------
+     10001               0       8500       2200        425           0         8450          2150        400         200           0              0               0                  0                 0            1250            350             380                 150                 180
+     10002               0       9200       2500        455           0         9150          2450        430         220           0              0               0                  0                 0            1350            380             420                 165                 195
+     10003               0      10500       2800        485           0        10450          2750        460         250           0              0               0                  0                 0            1450            420             460                 180                 210
+
+~~END-SYSSTAT~~
+
+
+..Gathering FEATURES
+
+~~BEGIN-FEATURES~~
+
+NAME                                                             DETECTED_USAGES TOTAL_SAMPLES CURRENTLY_  AUX_COUNT LAST_SAMPLE_DATE                 FEATURE_INFO
+---------------------------------------------------------------- --------------- ------------- ---------- ---------- -------------------------------- ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ADDM                                                                           5           100 TRUE                0 15-1월-2026
+AWR Report                                                                     5           100 TRUE                3 15-1월-2026
+Adaptive Plans                                                               100           100 TRUE                  15-1월-2026
+Automatic Maintenance - Optimizer Statistics Gathering                       100           100 TRUE              150 15-1월-2026
+Automatic SGA Tuning                                                         100           100 TRUE                0 15-1월-2026
+Automatic Undo Management                                                    100           100 TRUE                2 15-1월-2026
+Character Set                                                                100           100 TRUE                  15-1월-2026                     AL32UTF8
+Internode Parallel Execution                                                  85           100 TRUE                  15-1월-2026
+Job Scheduler                                                                 95           100 TRUE                2 15-1월-2026
+LOB                                                                           98           100 TRUE                  15-1월-2026
+Locally Managed Tablespaces (system)                                         100           100 TRUE               25 15-1월-2026
+Oracle Java Virtual Machine (system)                                         100           100 TRUE            25000 15-1월-2026
+Parallel SQL Query Execution                                                  98           100 TRUE                  15-1월-2026
+Real Application Clusters (RAC)                                              100           100 TRUE                2 15-1월-2026                     usage:All Active:cpu_count_current:32:cpu_stddev_current:0
+Real-Time SQL Monitoring                                                      92           100 TRUE           850000 15-1월-2026
+Recovery Manager (RMAN)                                                      100           100 TRUE                1 15-1월-2026
+Result Cache                                                                  88           100 TRUE               18 15-1월-2026
+SecureFiles (system)                                                         100           100 TRUE              350 15-1월-2026
+SecureFiles (user)                                                           100           100 TRUE              650 15-1월-2026
+Server Parameter File                                                        100           100 TRUE                  15-1월-2026
+
+~~END-FEATURES~~
+
+
+..Gathering IOSTAT-FUNCTION
+
+~~BEGIN-IOSTAT-FUNCTION~~
+
+   SNAP_ID FUNCTION_NAME        megabytes_val_per_s
+---------- -------------------- -------------------
+     10001 Buffer Cache Reads                 425.5
+     10001 Direct Reads                        85.5
+     10001 Direct Writes                       45.5
+     10001 LGWR                                25.5
+     10002 Buffer Cache Reads                 455.5
+     10002 Direct Reads                        92.5
+     10002 Direct Writes                       48.5
+     10002 LGWR                                28.5
+     10003 Buffer Cache Reads                 485.5
+     10003 Direct Reads                       105.5
+     10003 Direct Writes                       52.5
+     10003 LGWR                                32.5
+
+~~END-IOSTAT-FUNCTION~~
+
+
+..Gathering PERCENT-CPU
+
+~~BEGIN-PERCENT-CPU~~
+
+      DBID   ORDER_BY METRIC               INSTANCE_NUMBER     ON_CPU ON_CPU_AND_RESMGR RESMGR_CPU_QUANTUM BEGIN_INTERVAL_TIME              END_INTERVAL_TIME                SNAP_SHOTS       DAYS AVG_SNAPS_PER_DAY
+---------- ---------- -------------------- --------------- ---------- ----------------- ------------------ -------------------------------- -------------------------------- ---------- ---------- -----------------
+1234567890          1 Average                            1       45.2              45.2                  0 15-1월-2026 08:00               15-1월-2026 12:00                         3          1                 3
+1234567890          2 Average                            2       42.5              42.5                  0 15-1월-2026 08:00               15-1월-2026 12:00                         3          1                 3
+
+~~END-PERCENT-CPU~~
+
+
+..Gathering PERCENT-IO
+
+~~BEGIN-PERCENT-IO~~
+
+      DBID METRIC               INSTANCE_NUMBER    RW_IOPS     R_IOPS     W_IOPS    RW_MBPS     R_MBPS     W_MBPS BEGIN_INTERVAL_TIME              END_INTERVAL_TIME                SNAP_SHOTS       DAYS AVG_SNAPS_PER_DAY
+---------- -------------------- --------------- ---------- ---------- ---------- ---------- ---------- ---------- -------------------------------- -------------------------------- ---------- ---------- -----------------
+1234567890 Average                            1      10700       8500       2200        550        425        125 15-1월-2026 08:00               15-1월-2026 12:00                         3          1                 3
+1234567890 Average                            2       9850       7850       2000        510        395        115 15-1월-2026 08:00               15-1월-2026 12:00                         3          1                 3
+
+~~END-PERCENT-IO~~
+
+
+..Gathering WORKLOAD
+
+~~BEGIN-WORKLOAD~~
+
+SAMPLESTART                                               TOPN MODULE                                                                                                                           PROGRAM                                                                                                                          EVENT                                                                                                                            TOTAL_DBTIME_SUM        AAS_COMP AAS_CONTRIBUTION_PCT TOT_CONTRIBUTIONS SESSION_TYPE         WAIT_CLASS           DELTA_READ_IO_REQUESTS DELTA_WRITE_IO_REQUESTS DELTA_READ_IO_BYTES DELTA_WRITE_IO_BYTES        RIOR_PCT        WIOR_PCT        RIOB_PCT        WIOB_PCT        RIOR_TOT        WIOR_TOT        RIOB_TOT        WIOB_TOT
+--------------------------------------------------------- ---- -------------------------------------------------------------------------------------------------------------------------------- -------------------------------------------------------------------------------------------------------------------------------- -------------------------------------------------------------------------------------------------------------------------------- -------------------- ---------- -------------------- ----------------- -------------------- -------------------- ---------------------- ----------------------- ------------------- -------------------- --------------- --------------- --------------- --------------- --------------- --------------- --------------- ---------------
+15-1월-2026 09:00                                            1 ERP_BATCH_MODULE                                                                                                                 oracle@erpserver1                                                                                                                DB CPU                                                                                                                                      8500000          4.5                   35                 1 FOREGROUND           CPU                                   8500                    2200          4500000000           1200000000              35              25              40              30            8500            2200      4500000000      1200000000
+15-1월-2026 09:00                                            2 ERP_ONLINE_MODULE                                                                                                                oracle@erpserver1                                                                                                                db file sequential read                                                                                                                     2500000          1.5                   15                 2 FOREGROUND           User I/O                              2500                     650          1350000000            350000000              15              12              18              14            2500             650      1350000000       350000000
+
+~~END-WORKLOAD~~
+
+
+..Gathering SGA-ADVICE
+
+~~BEGIN-SGA-ADVICE~~
+
+        INST_ID        SGA_SIZE SGA_SIZE_FACTOR    ESTD_DB_TIME ESTD_DB_TIME_FACTOR ESTD_PHYSICAL_READS ESTD_BUFFER_CACHE_SIZE ESTD_SHARED_POOL_SIZE          CON_ID      SGA_TARGET
+--------------- --------------- --------------- --------------- ------------------- ------------------- ---------------------- --------------------- --------------- ---------------
+              1             120             0.75         1250000                1.25            85000000                     95                    20               0             160
+              1             160             1.00         1000000                1.00            68000000                    128                    25               0             160
+              1             200             1.25          850000                0.85            55000000                    160                    32               0             160
+              2             120             0.75         1200000                1.20            82000000                     95                    20               0             160
+              2             160             1.00          980000                1.00            65000000                    128                    25               0             160
+              2             200             1.25          820000                0.84            52000000                    160                    32               0             160
+
+~~END-SGA-ADVICE~~
+
+
+..Gathering BUFFER-CACHE
+
+~~BEGIN-BUFFER-CACHE~~
+
+        SNAP_ID INSTANCE_NUMBER      BLOCK_SIZE     DB_CACHE_GB       DSK_READS      BLOCK_GETS      CONSISTENT      BUF_GOT_GB       HIT_RATIO
+--------------- --------------- --------------- --------------- --------------- --------------- --------------- --------------- ---------------
+          10001               1            8192             128        85000000      4500000000      3800000000            35.5           98.25
+          10001               2            8192             128        82000000      4200000000      3600000000            33.5           98.15
+          10002               1            8192             128        92000000      4800000000      4100000000            38.5           98.35
+          10002               2            8192             128        88000000      4500000000      3900000000            36.5           98.25
+          10003               1            8192             128       105000000      5200000000      4500000000            42.5           98.45
+          10003               2            8192             128        98000000      4800000000      4200000000            39.5           98.35
+
+~~END-BUFFER-CACHE~~

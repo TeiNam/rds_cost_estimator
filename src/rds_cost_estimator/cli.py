@@ -8,7 +8,6 @@ CLIArgs Pydantic 모델로 변환하여 반환합니다.
 from __future__ import annotations
 
 import argparse
-from typing import Optional
 
 from rds_cost_estimator.models import CLIArgs
 
@@ -21,13 +20,17 @@ def parse_args(argv: list[str] | None = None) -> CLIArgs:
 
     Returns:
         파싱된 인수를 담은 CLIArgs 모델 인스턴스.
-
-    Raises:
-        SystemExit(1): 필수 인수가 누락된 경우 사용법 안내 후 종료.
     """
     parser = argparse.ArgumentParser(
         prog="rds-cost-estimator",
-        description="AWS RDS 이관 비용 예측 도구 - 온프레미스에서 RDS로 이관 시 예상 비용을 분석합니다.",
+        description="AWS RDS 이관 비용 예측 도구 - 리포트 파일을 입력받아 비용 분석 MD 리포트를 생성합니다.",
+    )
+
+    # 리포트 파일 경로 (필수)
+    parser.add_argument(
+        "input_file",
+        type=str,
+        help="인스턴스 사양 정보가 담긴 리포트 파일 경로 (PDF/DOCX/TXT/MD)",
     )
 
     # AWS 리전 (기본값: 서울 리전)
@@ -38,7 +41,24 @@ def parse_args(argv: list[str] | None = None) -> CLIArgs:
         help="AWS 리전 코드 (기본값: ap-northeast-2)",
     )
 
-    # 현재 인스턴스 유형
+    # RDS 엔진 (기본값: Oracle Enterprise Edition)
+    parser.add_argument(
+        "--engine",
+        type=str,
+        default="oracle-ee",
+        help="RDS 엔진 유형 (기본값: oracle-ee)",
+    )
+
+    # 온프레미스 연간 유지비용 (선택 - 문서에서 추출 가능)
+    parser.add_argument(
+        "--on-prem-cost",
+        type=float,
+        default=None,
+        dest="on_prem_cost",
+        help="온프레미스 연간 유지비용 (USD). 미지정 시 문서에서 추출 시도",
+    )
+
+    # 현재 인스턴스 유형 (선택 - 문서에서 추출 가능)
     parser.add_argument(
         "--current-instance",
         type=str,
@@ -47,30 +67,40 @@ def parse_args(argv: list[str] | None = None) -> CLIArgs:
         help="현재 사용 중인 RDS 인스턴스 유형 (예: db.r6i.xlarge)",
     )
 
-    # 권장 인스턴스 유형
+    # 사이즈 기준 권장 인스턴스 (선택 - 문서에서 추출 가능)
     parser.add_argument(
-        "--recommended-instance",
+        "--recommended-instance-by-size",
         type=str,
         default=None,
-        dest="recommended_instance",
-        help="권장 RDS 인스턴스 유형 (예: db.r7i.xlarge)",
+        dest="recommended_instance_by_size",
+        help="현재 사이즈 기준 권장 RDS 인스턴스 유형",
     )
 
-    # 온프레미스 연간 유지비용
+    # SGA 기준 권장 인스턴스 (선택 - 문서에서 추출 가능)
     parser.add_argument(
-        "--on-prem-cost",
-        type=float,
-        default=None,
-        dest="on_prem_cost",
-        help="온프레미스 연간 유지비용 (USD)",
-    )
-
-    # RDS 엔진 (기본값: Oracle Enterprise Edition)
-    parser.add_argument(
-        "--engine",
+        "--recommended-instance-by-sga",
         type=str,
-        default="oracle-ee",
-        help="RDS 엔진 유형 (기본값: oracle-ee)",
+        default=None,
+        dest="recommended_instance_by_sga",
+        help="SGA 기준 권장 RDS 인스턴스 유형",
+    )
+
+    # 출력 디렉토리
+    parser.add_argument(
+        "-o", "--output-dir",
+        type=str,
+        default=".",
+        dest="output_dir",
+        help="결과 파일 출력 디렉토리 (기본값: 현재 디렉토리)",
+    )
+
+    # JSON 출력도 함께 생성
+    parser.add_argument(
+        "--json",
+        action="store_true",
+        default=False,
+        dest="output_json",
+        help="MD 리포트와 함께 JSON 파일도 생성",
     )
 
     # AWS CLI 프로파일
@@ -81,6 +111,15 @@ def parse_args(argv: list[str] | None = None) -> CLIArgs:
         help="사용할 AWS CLI 프로파일 이름",
     )
 
+    # Bedrock 모델 ID
+    parser.add_argument(
+        "--bedrock-model",
+        type=str,
+        default="anthropic.claude-sonnet-4-6",
+        dest="bedrock_model",
+        help="AWS Bedrock 모델 ID (기본값: anthropic.claude-sonnet-4-6)",
+    )
+
     # 상세 로그 활성화 플래그
     parser.add_argument(
         "--verbose",
@@ -89,75 +128,19 @@ def parse_args(argv: list[str] | None = None) -> CLIArgs:
         help="DEBUG 레벨 로그를 활성화합니다",
     )
 
-    # 출력 형식 (json 지원)
-    parser.add_argument(
-        "--output-format",
-        type=str,
-        default=None,
-        dest="output_format",
-        choices=["json"],
-        help="출력 형식 (현재 지원: json)",
-    )
-
-    # JSON 출력 파일 경로
-    parser.add_argument(
-        "--output-file",
-        type=str,
-        default=None,
-        dest="output_file",
-        help="JSON 결과를 저장할 파일 경로",
-    )
-
-    # 문서 파일 경로 (PDF/DOCX/TXT)
-    parser.add_argument(
-        "--input-file",
-        type=str,
-        default=None,
-        dest="input_file",
-        help="인스턴스 사양 정보가 담긴 문서 파일 경로 (PDF/DOCX/TXT)",
-    )
-
-    # Bedrock 모델 ID
-    parser.add_argument(
-        "--bedrock-model",
-        type=str,
-        default="anthropic.claude-3-5-sonnet-20241022-v2:0",
-        dest="bedrock_model",
-        help="AWS Bedrock 모델 ID (기본값: anthropic.claude-3-5-sonnet-20241022-v2:0)",
-    )
-
-    # 인수 파싱 실행
     namespace = parser.parse_args(argv)
 
-    # --input-file이 없을 때 필수 인수 검증
-    if namespace.input_file is None:
-        missing: list[str] = []
-
-        if namespace.current_instance is None:
-            missing.append("--current-instance")
-        if namespace.recommended_instance is None:
-            missing.append("--recommended-instance")
-        if namespace.on_prem_cost is None:
-            missing.append("--on-prem-cost")
-
-        if missing:
-            # 누락된 필수 인수 목록을 포함한 오류 메시지 출력 후 종료 코드 1로 종료
-            parser.error(
-                f"--input-file이 지정되지 않은 경우 다음 인수가 필수입니다: "
-                f"{', '.join(missing)}"
-            )
-
-    # CLIArgs Pydantic 모델로 변환하여 반환
     return CLIArgs(
         region=namespace.region,
         current_instance=namespace.current_instance,
-        recommended_instance=namespace.recommended_instance,
+        recommended_instance_by_size=namespace.recommended_instance_by_size,
+        recommended_instance_by_sga=namespace.recommended_instance_by_sga,
         on_prem_cost=namespace.on_prem_cost,
         engine=namespace.engine,
         profile=namespace.profile,
         verbose=namespace.verbose,
-        output_format=namespace.output_format,
-        output_file=namespace.output_file,
+        output_format="json" if namespace.output_json else None,
+        output_dir=namespace.output_dir,
         input_file=namespace.input_file,
         bedrock_model=namespace.bedrock_model,
     )

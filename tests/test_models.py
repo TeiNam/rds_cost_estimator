@@ -121,7 +121,7 @@ class TestCostRecordRI3YrAnnualCost:
     """CostRecord 3년 RI 연간 비용 자동 계산 테스트."""
 
     def test_ri_3yr_annual_cost_calculation(self, sample_spec: InstanceSpec) -> None:
-        """3년 RI annual_cost = upfront_fee + monthly_fee × 36 자동 계산 확인."""
+        """3년 RI annual_cost = (upfront_fee + monthly_fee × 36) / 3 자동 계산 확인."""
         upfront_fee = 2000.0
         monthly_fee = 400.0
         record = CostRecord(
@@ -130,18 +130,18 @@ class TestCostRecordRI3YrAnnualCost:
             upfront_fee=upfront_fee,
             monthly_fee=monthly_fee,
         )
-        expected = upfront_fee + monthly_fee * 36
+        expected = (upfront_fee + monthly_fee * 36) / 3
         assert record.annual_cost == pytest.approx(expected)
 
     def test_ri_3yr_annual_cost_with_zero_upfront(self, sample_spec: InstanceSpec) -> None:
-        """선결제 0인 경우 3년 RI 연간 비용 = monthly_fee × 36 확인."""
+        """선결제 0인 경우 3년 RI 연간 비용 = (monthly_fee × 36) / 3 확인."""
         record = CostRecord(
             spec=sample_spec,
             pricing_type=PricingType.RI_3YR,
             upfront_fee=0.0,
             monthly_fee=200.0,
         )
-        assert record.annual_cost == pytest.approx(200.0 * 36)
+        assert record.annual_cost == pytest.approx((200.0 * 36) / 3)
 
     def test_ri_3yr_annual_cost_none_when_missing_fees(
         self, sample_spec: InstanceSpec
@@ -175,19 +175,21 @@ class TestCLIArgsDefaults:
         assert args.verbose is False
 
     def test_bedrock_model_default(self) -> None:
-        """bedrock_model 기본값이 Claude 3.5 Sonnet인지 확인."""
+        """bedrock_model 기본값이 Claude Sonnet 4.6인지 확인."""
         args = CLIArgs()
-        assert args.bedrock_model == "anthropic.claude-3-5-sonnet-20241022-v2:0"
+        assert args.bedrock_model == "anthropic.claude-sonnet-4-6"
 
     def test_optional_fields_default_none(self) -> None:
         """선택적 필드들의 기본값이 None인지 확인."""
         args = CLIArgs()
         assert args.current_instance is None
         assert args.recommended_instance is None
+        assert args.recommended_instance_by_size is None
+        assert args.recommended_instance_by_sga is None
         assert args.on_prem_cost is None
         assert args.profile is None
         assert args.output_format is None
-        assert args.output_file is None
+        assert args.output_dir == "."
         assert args.input_file is None
 
     def test_custom_values(self) -> None:
@@ -195,15 +197,31 @@ class TestCLIArgsDefaults:
         args = CLIArgs(
             region="us-east-1",
             current_instance="db.r6i.xlarge",
-            recommended_instance="db.r7i.xlarge",
+            recommended_instance_by_size="db.r7i.xlarge",
+            recommended_instance_by_sga="db.r7i.large",
             on_prem_cost=150000.0,
             engine="aurora-postgresql",
             verbose=True,
         )
         assert args.region == "us-east-1"
         assert args.current_instance == "db.r6i.xlarge"
+        assert args.recommended_instance_by_size == "db.r7i.xlarge"
+        assert args.recommended_instance_by_sga == "db.r7i.large"
         assert args.on_prem_cost == 150000.0
         assert args.verbose is True
+
+    def test_recommended_instance_migrates_to_by_size(self) -> None:
+        """recommended_instance가 recommended_instance_by_size로 마이그레이션되는지 확인."""
+        args = CLIArgs(recommended_instance="db.r6i.xlarge")
+        assert args.recommended_instance_by_size == "db.r6i.xlarge"
+
+    def test_recommended_instance_does_not_overwrite_by_size(self) -> None:
+        """recommended_instance_by_size가 이미 있으면 recommended_instance로 덮어쓰지 않는지 확인."""
+        args = CLIArgs(
+            recommended_instance="db.r6i.xlarge",
+            recommended_instance_by_size="db.r7i.xlarge",
+        )
+        assert args.recommended_instance_by_size == "db.r7i.xlarge"
 
 
 class TestParsedDocumentInfoDefaults:
@@ -214,6 +232,8 @@ class TestParsedDocumentInfoDefaults:
         info = ParsedDocumentInfo()
         assert info.current_instance is None
         assert info.recommended_instance is None
+        assert info.recommended_instance_by_size is None
+        assert info.recommended_instance_by_sga is None
         assert info.on_prem_cost is None
         assert info.engine is None
 

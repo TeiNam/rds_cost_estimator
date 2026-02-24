@@ -115,14 +115,15 @@ class TestComputeSavings:
 
     def test_ri_3yr_annual_cost_mapped_correctly(self) -> None:
         """3년 RI 연간 비용이 CostRow.ri_3yr_annual에 올바르게 매핑되는지 확인."""
-        # upfront=8000, monthly=700 → annual = 8000 + 700 × 36 = 33200.0
+        # upfront=8000, monthly=700 → 3년 총액 = 8000 + 700 × 36 = 33200.0
+        # 연간 환산 = 33200.0 / 3 ≈ 11066.67
         record = make_ri_3yr_record(upfront_fee=8000.0, monthly_fee=700.0)
         table = CostTable(records=[record], on_prem_annual_cost=50000.0)
 
         rows = table.compute_savings()
 
         assert len(rows) == 1
-        assert rows[0].ri_3yr_annual == pytest.approx(8000.0 + 700.0 * 36)
+        assert rows[0].ri_3yr_annual == pytest.approx((8000.0 + 700.0 * 36) / 3)
 
     def test_all_three_pricing_types_in_one_row(self) -> None:
         """온디맨드/1년RI/3년RI 세 레코드가 하나의 CostRow로 합쳐지는지 확인."""
@@ -174,15 +175,16 @@ class TestComputeSavings:
 
     def test_savings_rate_ri_3yr_formula(self) -> None:
         """3년 RI 절감률 계산 공식 정확성 확인."""
-        # upfront=8000, monthly=700 → annual = 33200.0
+        # upfront=8000, monthly=700 → 3년 총액 = 8000 + 700 × 36 = 33200.0
+        # 연간 환산 = 33200.0 / 3 ≈ 11066.67
         # on_prem = 50000.0
-        # savings_rate = (50000 - 33200) / 50000 × 100 = 33.6
+        # savings_rate = (50000 - 11066.67) / 50000 × 100 ≈ 77.87%
         record = make_ri_3yr_record(upfront_fee=8000.0, monthly_fee=700.0)
         on_prem = 50000.0
         table = CostTable(records=[record], on_prem_annual_cost=on_prem)
 
         rows = table.compute_savings()
-        annual = 8000.0 + 700.0 * 36
+        annual = (8000.0 + 700.0 * 36) / 3
         expected_rate = (on_prem - annual) / on_prem * 100
 
         assert rows[0].savings_rate_ri_3yr == pytest.approx(expected_rate)

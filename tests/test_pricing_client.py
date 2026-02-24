@@ -53,20 +53,20 @@ class TestCacheKey:
     def test_cache_key_format(self, pricing_client: PricingClient, sample_spec: InstanceSpec) -> None:
         """캐시 키가 올바른 형식으로 반환되는지 확인."""
         key = pricing_client._cache_key(sample_spec, PricingType.ON_DEMAND)
-        # 형식: "{instance_type}:{region}:{engine}:{pricing_type.value}"
-        expected = "db.r6i.xlarge:ap-northeast-2:oracle-ee:on_demand"
+        # 형식: "{instance_type}:{region}:{engine}:{deployment}:{pricing_type.value}"
+        expected = "db.r6i.xlarge:ap-northeast-2:oracle-ee:Single-AZ:on_demand"
         assert key == expected
 
     def test_cache_key_ri_1yr(self, pricing_client: PricingClient, sample_spec: InstanceSpec) -> None:
         """1년 RI 캐시 키 형식 확인."""
         key = pricing_client._cache_key(sample_spec, PricingType.RI_1YR)
-        expected = "db.r6i.xlarge:ap-northeast-2:oracle-ee:1yr_partial_upfront"
+        expected = "db.r6i.xlarge:ap-northeast-2:oracle-ee:Single-AZ:1yr_partial_upfront"
         assert key == expected
 
     def test_cache_key_ri_3yr(self, pricing_client: PricingClient, sample_spec: InstanceSpec) -> None:
         """3년 RI 캐시 키 형식 확인."""
         key = pricing_client._cache_key(sample_spec, PricingType.RI_3YR)
-        expected = "db.r6i.xlarge:ap-northeast-2:oracle-ee:3yr_partial_upfront"
+        expected = "db.r6i.xlarge:ap-northeast-2:oracle-ee:Single-AZ:3yr_partial_upfront"
         assert key == expected
 
     def test_cache_key_different_specs_are_unique(
@@ -113,66 +113,85 @@ class TestCacheKey:
 class TestBuildFilters:
     """_build_filters 메서드 테스트."""
 
-    def test_on_demand_filter_contains_term_type(
+    def test_common_filters_always_present(
         self, pricing_client: PricingClient, sample_spec: InstanceSpec
     ) -> None:
-        """온디맨드 필터에 termType=OnDemand가 포함되는지 확인."""
+        """공통 필터(instanceType, location, databaseEngine, deploymentOption)가 항상 포함되는지 확인."""
         filters = pricing_client._build_filters(sample_spec, "OnDemand")
-        # termType 필터 찾기
+        field_names = [f.get("Field") for f in filters]
+        assert "instanceType" in field_names
+        assert "location" in field_names
+        assert "databaseEngine" in field_names
+        assert "deploymentOption" in field_names
+
+    def test_no_term_type_in_filters(
+        self, pricing_client: PricingClient, sample_spec: InstanceSpec
+    ) -> None:
+        """필터에 termType이 포함되지 않는지 확인 (term 선택은 파싱 단계에서 수행)."""
+        filters = pricing_client._build_filters(sample_spec, "OnDemand")
         term_type_filters = [
             f for f in filters
             if f.get("Field") == "termType"
         ]
-        assert len(term_type_filters) == 1
-        assert term_type_filters[0]["Value"] == "OnDemand"
+        assert len(term_type_filters) == 0
 
-    def test_ri_filter_contains_term_type_reserved(
+    def test_no_lease_contract_in_filters(
         self, pricing_client: PricingClient, sample_spec: InstanceSpec
     ) -> None:
-        """RI 필터에 termType=Reserved가 포함되는지 확인."""
-        filters = pricing_client._build_filters(sample_spec, "1yr")
-        term_type_filters = [
-            f for f in filters
-            if f.get("Field") == "termType"
-        ]
-        assert len(term_type_filters) == 1
-        assert term_type_filters[0]["Value"] == "Reserved"
-
-    def test_ri_1yr_filter_contains_lease_contract_length(
-        self, pricing_client: PricingClient, sample_spec: InstanceSpec
-    ) -> None:
-        """1년 RI 필터에 LeaseContractLength가 포함되는지 확인."""
+        """필터에 LeaseContractLength가 포함되지 않는지 확인."""
         filters = pricing_client._build_filters(sample_spec, "1yr")
         lease_filters = [
             f for f in filters
             if f.get("Field") == "LeaseContractLength"
         ]
-        assert len(lease_filters) == 1
-        assert lease_filters[0]["Value"] == "1yr"
+        assert len(lease_filters) == 0
 
-    def test_ri_3yr_filter_contains_lease_contract_length(
+    def test_no_purchase_option_in_filters(
         self, pricing_client: PricingClient, sample_spec: InstanceSpec
     ) -> None:
-        """3년 RI 필터에 LeaseContractLength가 포함되는지 확인."""
-        filters = pricing_client._build_filters(sample_spec, "3yr")
-        lease_filters = [
-            f for f in filters
-            if f.get("Field") == "LeaseContractLength"
-        ]
-        assert len(lease_filters) == 1
-        assert lease_filters[0]["Value"] == "3yr"
-
-    def test_ri_filter_contains_purchase_option(
-        self, pricing_client: PricingClient, sample_spec: InstanceSpec
-    ) -> None:
-        """RI 필터에 PurchaseOption이 포함되는지 확인."""
+        """필터에 PurchaseOption이 포함되지 않는지 확인."""
         filters = pricing_client._build_filters(sample_spec, "1yr")
         purchase_filters = [
             f for f in filters
             if f.get("Field") == "PurchaseOption"
         ]
-        assert len(purchase_filters) == 1
-        assert purchase_filters[0]["Value"] == "Partial Upfront"
+        assert len(purchase_filters) == 0
+
+    def test_license_model_filter_for_oracle_ee(
+        self, pricing_client: PricingClient
+    ) -> None:
+        """Oracle EE 엔진에 BYOL 라이선스 모델 필터가 포함되는지 확인."""
+        spec = InstanceSpec(
+            instance_type="db.r6i.xlarge",
+            region="ap-northeast-2",
+            engine="oracle-ee",
+            strategy=MigrationStrategy.REPLATFORM,
+        )
+        filters = pricing_client._build_filters(spec, "OnDemand")
+        license_filters = [
+            f for f in filters
+            if f.get("Field") == "licenseModel"
+        ]
+        assert len(license_filters) == 1
+        assert license_filters[0]["Value"] == "Bring Your Own License"
+
+    def test_license_model_filter_for_oracle_se2(
+        self, pricing_client: PricingClient
+    ) -> None:
+        """Oracle SE2 엔진에 License Included 라이선스 모델 필터가 포함되는지 확인."""
+        spec = InstanceSpec(
+            instance_type="db.r6i.xlarge",
+            region="ap-northeast-2",
+            engine="oracle-se2",
+            strategy=MigrationStrategy.REPLATFORM,
+        )
+        filters = pricing_client._build_filters(spec, "OnDemand")
+        license_filters = [
+            f for f in filters
+            if f.get("Field") == "licenseModel"
+        ]
+        assert len(license_filters) == 1
+        assert license_filters[0]["Value"] == "License Included"
 
     def test_region_code_converted_to_display_name(
         self, pricing_client: PricingClient
@@ -225,17 +244,6 @@ class TestBuildFilters:
             if f.get("Field") == "location"
         ]
         assert location_filters[0]["Value"] == "unknown-region-99"
-
-    def test_on_demand_filter_does_not_contain_lease_contract(
-        self, pricing_client: PricingClient, sample_spec: InstanceSpec
-    ) -> None:
-        """온디맨드 필터에 LeaseContractLength가 포함되지 않는지 확인."""
-        filters = pricing_client._build_filters(sample_spec, "OnDemand")
-        lease_filters = [
-            f for f in filters
-            if f.get("Field") == "LeaseContractLength"
-        ]
-        assert len(lease_filters) == 0
 
     def test_filters_contain_instance_type(
         self, pricing_client: PricingClient, sample_spec: InstanceSpec

@@ -36,7 +36,7 @@ def make_args(**kwargs) -> CLIArgs:
     defaults = {
         "region": "ap-northeast-2",
         "current_instance": "db.r6i.xlarge",
-        "recommended_instance": "db.r7i.xlarge",
+        "recommended_instance_by_size": "db.r7i.xlarge",
         "on_prem_cost": 100_000.0,
         "engine": "oracle-ee",
     }
@@ -128,16 +128,104 @@ class TestBuildSpecs:
             from rds_cost_estimator.estimator import Estimator
             return Estimator(args)
 
-    def test_build_specs_returns_four_specs(self):
-        """current_instance와 recommended_instance가 모두 있으면 4개의 InstanceSpec을 반환해야 한다."""
+    def test_build_specs_expands_families_for_current_instance_non_oracle(self):
+        """비Oracle 엔진에서 current_instance에 대해 r6i/r7i/r7g 패밀리 변형이 생성되어야 한다."""
         args = make_args(
             current_instance="db.r6i.xlarge",
-            recommended_instance="db.r7i.xlarge",
+            recommended_instance_by_size=None,
+            recommended_instance_by_sga=None,
+            engine="mysql",
         )
         estimator = self._make_estimator(args)
         specs = estimator._build_specs()
 
-        assert len(specs) == 4
+        # Refactoring에는 r7g 포함
+        refactoring_types = {s.instance_type for s in specs if s.strategy == MigrationStrategy.REFACTORING}
+        assert "db.r6i.xlarge" in refactoring_types
+        assert "db.r7i.xlarge" in refactoring_types
+        assert "db.r7g.xlarge" in refactoring_types
+
+    def test_build_specs_oracle_replatform_excludes_graviton(self):
+        """Oracle 엔진의 REPLATFORM에서 Graviton(r7g)이 제외되어야 한다."""
+        args = make_args(
+            current_instance="db.r6i.xlarge",
+            recommended_instance_by_size=None,
+            recommended_instance_by_sga=None,
+            engine="oracle-ee",
+        )
+        estimator = self._make_estimator(args)
+        specs = estimator._build_specs()
+
+        replatform_types = {s.instance_type for s in specs if s.strategy == MigrationStrategy.REPLATFORM}
+        assert "db.r6i.xlarge" in replatform_types
+        assert "db.r7i.xlarge" in replatform_types
+        assert "db.r7g.xlarge" not in replatform_types
+
+    def test_build_specs_refactoring_includes_graviton_for_oracle(self):
+        """Oracle 엔진이라도 REFACTORING(Aurora PostgreSQL)에서는 r7g가 포함되어야 한다."""
+        args = make_args(
+            current_instance="db.r6i.xlarge",
+            recommended_instance_by_size=None,
+            recommended_instance_by_sga=None,
+            engine="oracle-ee",
+        )
+        estimator = self._make_estimator(args)
+        specs = estimator._build_specs()
+
+        refactoring_types = {s.instance_type for s in specs if s.strategy == MigrationStrategy.REFACTORING}
+        assert "db.r6i.xlarge" in refactoring_types
+        assert "db.r7i.xlarge" in refactoring_types
+        assert "db.r7g.xlarge" in refactoring_types
+
+    def test_build_specs_expands_families_for_recommended_by_size(self):
+        """recommended_instance_by_size에 대해 패밀리 변형이 생성되어야 한다."""
+        args = make_args(
+            current_instance=None,
+            recommended_instance_by_size="db.r6i.2xlarge",
+            recommended_instance_by_sga=None,
+        )
+        estimator = self._make_estimator(args)
+        specs = estimator._build_specs()
+
+        refactoring_types = {s.instance_type for s in specs if s.strategy == MigrationStrategy.REFACTORING}
+        assert "db.r6i.2xlarge" in refactoring_types
+        assert "db.r7i.2xlarge" in refactoring_types
+        assert "db.r7g.2xlarge" in refactoring_types
+
+    def test_build_specs_expands_families_for_recommended_by_sga(self):
+        """recommended_instance_by_sga에 대해 패밀리 변형이 생성되어야 한다."""
+        args = make_args(
+            current_instance=None,
+            recommended_instance_by_size=None,
+            recommended_instance_by_sga="db.r6i.large",
+        )
+        estimator = self._make_estimator(args)
+        specs = estimator._build_specs()
+
+        refactoring_types = {s.instance_type for s in specs if s.strategy == MigrationStrategy.REFACTORING}
+        assert "db.r6i.large" in refactoring_types
+        assert "db.r7i.large" in refactoring_types
+        assert "db.r7g.large" in refactoring_types
+
+    def test_build_specs_deduplicates_same_instance(self):
+        """동일 사이즈의 current와 recommended가 겹치면 중복 제거되어야 한다."""
+        args = make_args(
+            current_instance="db.r6i.xlarge",
+            recommended_instance_by_size="db.r7i.xlarge",  # current 확장 시 이미 포함됨
+            recommended_instance_by_sga=None,
+        )
+        estimator = self._make_estimator(args)
+        specs = estimator._build_specs()
+
+        # Oracle(oracle-ee) 기본 엔진:
+        # Replatform: r6i, r7i (Graviton 제외) = 2개
+        # Refactoring: r6i, r7i, r7g = 3개
+        # 총 5개 스펙
+        replatform_types = {s.instance_type for s in specs if s.strategy == MigrationStrategy.REPLATFORM}
+        refactoring_types = {s.instance_type for s in specs if s.strategy == MigrationStrategy.REFACTORING}
+        assert len(replatform_types) == 2
+        assert len(refactoring_types) == 3
+        assert len(specs) == 5
 
     def test_build_specs_replatform_uses_args_engine(self):
         """REPLATFORM 전략의 InstanceSpec은 args.engine을 사용해야 한다."""
@@ -146,7 +234,6 @@ class TestBuildSpecs:
         specs = estimator._build_specs()
 
         replatform_specs = [s for s in specs if s.strategy == MigrationStrategy.REPLATFORM]
-        assert len(replatform_specs) == 2
         for spec in replatform_specs:
             assert spec.engine == "oracle-se2"
 
@@ -157,22 +244,8 @@ class TestBuildSpecs:
         specs = estimator._build_specs()
 
         refactoring_specs = [s for s in specs if s.strategy == MigrationStrategy.REFACTORING]
-        assert len(refactoring_specs) == 2
         for spec in refactoring_specs:
             assert spec.engine == "aurora-postgresql"
-
-    def test_build_specs_contains_both_instances(self):
-        """결과에 current_instance와 recommended_instance가 모두 포함되어야 한다."""
-        args = make_args(
-            current_instance="db.r6i.xlarge",
-            recommended_instance="db.r7i.xlarge",
-        )
-        estimator = self._make_estimator(args)
-        specs = estimator._build_specs()
-
-        instance_types = {s.instance_type for s in specs}
-        assert "db.r6i.xlarge" in instance_types
-        assert "db.r7i.xlarge" in instance_types
 
     def test_build_specs_contains_both_strategies(self):
         """결과에 REPLATFORM과 REFACTORING 전략이 모두 포함되어야 한다."""
@@ -192,6 +265,25 @@ class TestBuildSpecs:
 
         for spec in specs:
             assert spec.region == "us-east-1"
+
+    def test_build_specs_with_all_three_recommendations(self):
+        """current + by_size + by_sga 모두 다른 사이즈일 때 전체 조합이 생성되어야 한다."""
+        args = make_args(
+            current_instance="db.r6i.xlarge",
+            recommended_instance_by_size="db.r6i.2xlarge",
+            recommended_instance_by_sga="db.r6i.large",
+        )
+        estimator = self._make_estimator(args)
+        specs = estimator._build_specs()
+
+        # Oracle 엔진:
+        # Replatform: 3사이즈 × 2패밀리(r6i, r7i) = 6 유니크
+        # Refactoring: 3사이즈 × 3패밀리 = 9 유니크
+        replatform_types = {s.instance_type for s in specs if s.strategy == MigrationStrategy.REPLATFORM}
+        refactoring_types = {s.instance_type for s in specs if s.strategy == MigrationStrategy.REFACTORING}
+        assert len(replatform_types) == 6
+        assert len(refactoring_types) == 9
+        assert len(specs) == 15
 
 
 # ─────────────────────────────────────────────
@@ -230,7 +322,7 @@ class TestRun:
         """run()은 각 InstanceSpec에 대해 fetch_all을 호출해야 한다."""
         args = make_args(
             current_instance="db.r6i.xlarge",
-            recommended_instance="db.r7i.xlarge",
+            recommended_instance_by_size="db.r7i.xlarge",
         )
 
         with patch("rds_cost_estimator.estimator.boto3.Session"):
@@ -242,8 +334,12 @@ class TestRun:
 
         await estimator.run()
 
-        # 4개의 InstanceSpec에 대해 fetch_all이 4번 호출되어야 함
-        assert estimator._pricing_client.fetch_all.call_count == 4
+        # Oracle(oracle-ee) 엔진:
+        # current(r6i.xlarge) + recommended_by_size(r7i.xlarge) → 동일 사이즈
+        # Replatform: r6i, r7i (Graviton 제외) = 2개
+        # Refactoring: r6i, r7i, r7g = 3개
+        # 총 5개 스펙
+        assert estimator._pricing_client.fetch_all.call_count == 5
 
     @pytest.mark.asyncio
     async def test_run_cost_table_has_correct_on_prem_cost(self):
@@ -271,26 +367,21 @@ class TestInputFileIntegration:
     @pytest.mark.asyncio
     async def test_input_file_fills_missing_current_instance(self):
         """--input-file 지정 시 current_instance가 없으면 문서 파싱 결과로 보완해야 한다."""
-        # current_instance가 없는 CLIArgs
         args = make_args(
             current_instance=None,
-            recommended_instance="db.r7i.xlarge",
+            recommended_instance_by_size="db.r7i.xlarge",
             on_prem_cost=100_000.0,
             input_file="/path/to/doc.txt",
         )
 
-        # 문서 파싱 결과 모킹
         parsed_info = ParsedDocumentInfo(
             current_instance="db.r6i.xlarge",
-            recommended_instance=None,
-            on_prem_cost=None,
         )
 
         with patch("rds_cost_estimator.estimator.boto3.Session"):
             from rds_cost_estimator.estimator import Estimator
             estimator = Estimator(args)
 
-        # DocumentParser.parse를 모킹
         mock_parser = MagicMock()
         mock_parser.parse.return_value = parsed_info
 
@@ -299,25 +390,20 @@ class TestInputFileIntegration:
                 estimator._pricing_client.fetch_all = AsyncMock(return_value=[])
                 await estimator.run()
 
-        # current_instance가 문서 파싱 결과로 보완되어야 함
         assert estimator._args.current_instance == "db.r6i.xlarge"
 
     @pytest.mark.asyncio
     async def test_input_file_cli_args_take_priority(self):
         """--input-file 지정 시 CLI 인수가 문서 파싱 결과보다 우선해야 한다."""
-        # CLI에서 current_instance가 이미 지정된 경우
         args = make_args(
-            current_instance="db.r6i.2xlarge",  # CLI에서 명시적으로 지정
-            recommended_instance="db.r7i.xlarge",
+            current_instance="db.r6i.2xlarge",
+            recommended_instance_by_size="db.r7i.xlarge",
             on_prem_cost=100_000.0,
             input_file="/path/to/doc.txt",
         )
 
-        # 문서 파싱 결과에 다른 값이 있어도 CLI 인수가 우선
         parsed_info = ParsedDocumentInfo(
-            current_instance="db.r6i.xlarge",  # 문서에서 추출된 다른 값
-            recommended_instance=None,
-            on_prem_cost=None,
+            current_instance="db.r6i.xlarge",
         )
 
         with patch("rds_cost_estimator.estimator.boto3.Session"):
@@ -332,7 +418,6 @@ class TestInputFileIntegration:
                 estimator._pricing_client.fetch_all = AsyncMock(return_value=[])
                 await estimator.run()
 
-        # CLI 인수가 유지되어야 함 (문서 파싱 결과로 덮어쓰지 않음)
         assert estimator._args.current_instance == "db.r6i.2xlarge"
 
     @pytest.mark.asyncio
@@ -360,12 +445,40 @@ class TestInputFileIntegration:
                 estimator._pricing_client.fetch_all = AsyncMock(return_value=[])
                 await estimator.run()
 
-        # on_prem_cost가 문서 파싱 결과로 보완되어야 함
         assert estimator._args.on_prem_cost == 200_000.0
 
     @pytest.mark.asyncio
+    async def test_input_file_fills_recommended_by_size_and_sga(self):
+        """--input-file 지정 시 두 가지 권장 인스턴스가 문서 파싱 결과로 보완되어야 한다."""
+        args = make_args(
+            recommended_instance_by_size=None,
+            recommended_instance_by_sga=None,
+            input_file="/path/to/doc.txt",
+        )
+
+        parsed_info = ParsedDocumentInfo(
+            recommended_instance_by_size="db.r6i.2xlarge",
+            recommended_instance_by_sga="db.r6i.large",
+        )
+
+        with patch("rds_cost_estimator.estimator.boto3.Session"):
+            from rds_cost_estimator.estimator import Estimator
+            estimator = Estimator(args)
+
+        mock_parser = MagicMock()
+        mock_parser.parse.return_value = parsed_info
+
+        with patch("rds_cost_estimator.estimator.DocumentParser", return_value=mock_parser):
+            with patch("rds_cost_estimator.estimator.BedrockClient"):
+                estimator._pricing_client.fetch_all = AsyncMock(return_value=[])
+                await estimator.run()
+
+        assert estimator._args.recommended_instance_by_size == "db.r6i.2xlarge"
+        assert estimator._args.recommended_instance_by_sga == "db.r6i.large"
+
+    @pytest.mark.asyncio
     async def test_no_input_file_uses_cli_args_directly(self):
-        """--input-file이 없으면 DocumentParser를 호출하지 않아야 한다 (요구사항 8.8)."""
+        """--input-file이 없으면 DocumentParser를 호출하지 않아야 한다."""
         args = make_args(input_file=None)
 
         with patch("rds_cost_estimator.estimator.boto3.Session"):
@@ -376,7 +489,6 @@ class TestInputFileIntegration:
 
         with patch("rds_cost_estimator.estimator.DocumentParser") as mock_parser_cls:
             await estimator.run()
-            # DocumentParser가 인스턴스화되지 않아야 함
             mock_parser_cls.assert_not_called()
 
 

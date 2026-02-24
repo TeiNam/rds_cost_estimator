@@ -73,6 +73,16 @@ class TestDetectFormatSupportedExtensions:
         result = parser._detect_format("/home/user/documents/migration.plan.pdf")
         assert result == "pdf"
 
+    def test_detect_md_lowercase(self, parser: DocumentParser) -> None:
+        """.md 확장자를 'md'로 감지하는지 확인."""
+        result = parser._detect_format("/path/to/report.md")
+        assert result == "md"
+
+    def test_detect_md_uppercase(self, parser: DocumentParser) -> None:
+        """대문자 .MD 확장자도 'md'로 감지하는지 확인."""
+        result = parser._detect_format("/path/to/report.MD")
+        assert result == "md"
+
 
 class TestDetectFormatUnsupportedExtensions:
     """_detect_format: 비지원 확장자에서 UnsupportedFileFormatError 발생 테스트."""
@@ -112,6 +122,7 @@ class TestDetectFormatUnsupportedExtensions:
         assert ".pdf" in exc_info.value.supported_formats
         assert ".docx" in exc_info.value.supported_formats
         assert ".txt" in exc_info.value.supported_formats
+        assert ".md" in exc_info.value.supported_formats
 
     def test_json_raises_error(self, parser: DocumentParser) -> None:
         """.json 확장자에서 UnsupportedFileFormatError가 발생하는지 확인."""
@@ -138,3 +149,7 @@ class TestSupportedFormatsConstant:
     def test_supported_formats_contains_txt(self) -> None:
         """SUPPORTED_FORMATS에 .txt가 포함되는지 확인."""
         assert ".txt" in SUPPORTED_FORMATS
+
+    def test_supported_formats_contains_md(self) -> None:
+        """SUPPORTED_FORMATS에 .md가 포함되는지 확인."""
+        assert ".md" in SUPPORTED_FORMATS

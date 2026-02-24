@@ -21,7 +21,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 # 지원하는 파일 형식 목록
-SUPPORTED_FORMATS: list[str] = [".pdf", ".docx", ".txt"]
+SUPPORTED_FORMATS: list[str] = [".pdf", ".docx", ".txt", ".md"]
 
 
 class DocumentParser:
@@ -97,11 +97,14 @@ class DocumentParser:
         elif fmt == "docx":
             # DOCX: python-docx 라이브러리로 단락 텍스트 추출
             return self._extract_text_from_docx(file_path)
+        elif fmt == "md":
+            # MD: 내장 open()으로 UTF-8 직접 읽기 (TXT와 동일)
+            return self._extract_text_from_txt(file_path)
         else:
             # TXT: 내장 open()으로 UTF-8 직접 읽기
             return self._extract_text_from_txt(file_path)
 
-    def _detect_format(self, file_path: str) -> Literal["pdf", "docx", "txt"]:
+    def _detect_format(self, file_path: str) -> Literal["pdf", "docx", "txt", "md"]:
         """파일 확장자로 형식 감지.
 
         파일 경로에서 확장자를 추출하여 지원하는 형식인지 확인합니다.
@@ -132,6 +135,8 @@ class DocumentParser:
             return "docx"
         elif ext == ".txt":
             return "txt"
+        elif ext == ".md":
+            return "md"
         else:
             # 지원하지 않는 형식이면 예외 발생
             logger.warning("지원하지 않는 파일 형식: %s (확장자: %s)", file_path, ext)
