@@ -407,7 +407,7 @@ class ReportRenderer:
         # 4단계: 비Oracle 엔진일 때 Refactoring 비교 섹션 제거
         if not template_data.get("refac_section_visible", False):
             result = re.sub(
-                r"\n---\n\n## 8\. 이관 전략별 비용 비교.*?(?=\n---\n)",
+                r"\n---\n\n## \d+\. 이관 전략별 비용 비교.*?(?=\n---\n)",
                 "",
                 result,
                 flags=re.DOTALL,

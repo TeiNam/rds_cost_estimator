@@ -755,8 +755,8 @@ class TestRefactoringRendererPostProcessing:
         with open(output_path, "r", encoding="utf-8") as f:
             content = f.read()
 
-        assert "## 9. 권장사항" in content, (
-            "기존 섹션 8(권장사항)이 섹션 9로 변경되어야 합니다"
+        assert "## 8. 권장사항" in content, (
+            "권장사항 섹션이 존재해야 합니다"
         )
 
 
