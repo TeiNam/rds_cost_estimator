@@ -1,6 +1,6 @@
 # RDS Cost Estimator
 
-![Python](https://img.shields.io/badge/Python-3.11+-blue.svg)
+![Python](https://img.shields.io/badge/Python-3.12-blue.svg)
 ![Pydantic](https://img.shields.io/badge/Pydantic-2.0-E92063.svg)
 ![DuckDB](https://img.shields.io/badge/DuckDB-1.0-FFF000.svg)
 ![AWS](https://img.shields.io/badge/AWS-Cloud-FF9900.svg)
@@ -15,10 +15,12 @@
 - AWS Bedrock (Claude) 기반 문서 자동 파싱 (PDF/DOCX/TXT/MD)
 - AWS Pricing API + RDS RI Offerings API를 통한 실시간 가격 조회
 - DuckDB 인메모리 DB를 활용한 데이터 분석 및 리포트 생성
-- r6i/r7i 인스턴스 패밀리별 비용 비교
-- On-Demand / 1년 RI / 3년 RI (No Upfront, All Upfront) 요금 옵션
+- 동적 인스턴스 패밀리 비교 (r6i/r7i, m6i/m7i 등 동일 카테고리 자동 확장)
+- Aurora 엔진 인식 및 타겟 엔진 자동 추출 (aurora-postgresql, aurora-mysql)
+- On-Demand / 1년 RI All Upfront / 3년 RI All Upfront 요금 옵션
 - Single-AZ / Multi-AZ 배포 시나리오
-- 스토리지(gp3) + 네트워크(Cross-AZ) 비용 포함 3년 TCO 분석
+- 스토리지(gp3/Aurora 클러스터) + 네트워크(Cross-AZ) 비용 포함 3년 TCO 분석
+- Oracle 엔진 전용 Replatform vs Refactoring(Aurora PostgreSQL) 비용 비교
 
 ## 아키텍처
 
@@ -40,6 +42,9 @@ Estimator ─── Pricing API / RDS RI Offerings API 병렬 조회
     │                  DescribeReservedDBInstancesOfferings로 재조회
     ▼
 DuckDB Store ─── 가격 데이터 저장 + 집계 쿼리
+    │
+    ▼
+TemplateBuilder ─── 템플릿 데이터 구성 (스토리지/네트워크/TCO 계산)
     │
     ▼
 ReportRenderer ─── 템플릿 기반 Markdown 리포트 생성
@@ -220,6 +225,8 @@ src/rds_cost_estimator/
 ├── db_store.py          # DuckDB 인메모리 데이터 저장소
 ├── pricing_client.py    # AWS Pricing API + RDS RI Offerings API
 ├── estimator.py         # 핵심 오케스트레이션 로직
+├── instance_utils.py    # 인스턴스 사양/스토리지 비용 유틸리티
+├── template_builder.py  # 템플릿 v2 데이터 구성 (TCO/네트워크/비교)
 ├── cost_table.py        # 비용 집계 및 절감률 계산
 ├── renderer.py          # Markdown/JSON 리포트 생성
 └── exceptions.py        # 커스텀 예외 클래스
@@ -242,7 +249,7 @@ ruff check src/
 
 | 구분 | 기술 |
 |------|------|
-| 언어 | Python 3.11+ |
+| 언어 | Python 3.12+ |
 | 데이터 모델 | Pydantic v2 |
 | 분석 DB | DuckDB (인메모리) |
 | AWS SDK | boto3 |
