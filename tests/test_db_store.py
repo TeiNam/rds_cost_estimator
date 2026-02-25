@@ -211,3 +211,53 @@ class TestDuckDBStoreNetwork:
         net = store.get_network_traffic_summary()
         assert net["total_daily_gb"] == 0
         assert net["total_monthly_gb"] == 0
+
+
+class TestDuckDBStoreContextManager:
+    """DuckDBStore 컨텍스트 매니저 테스트."""
+
+    def test_context_manager_returns_instance(self) -> None:
+        """with 문에서 DuckDBStore 인스턴스를 반환하는지 확인."""
+        with DuckDBStore() as store:
+            assert isinstance(store, DuckDBStore)
+
+    def test_context_manager_closes_on_exit(self) -> None:
+        """with 블록 종료 시 연결이 닫히는지 확인."""
+        with DuckDBStore() as store:
+            # with 블록 내에서 정상 동작 확인
+            specs = store.get_server_specs()
+            assert specs is None  # 데이터 없으므로 None
+
+        # with 블록 종료 후 연결이 닫혔으므로 쿼리 시 예외 발생
+        with pytest.raises(Exception):
+            store.get_server_specs()
+
+    def test_context_manager_closes_on_exception(self) -> None:
+        """예외 발생 시에도 연결이 닫히는지 확인."""
+        store_ref = None
+        with pytest.raises(ValueError, match="테스트 예외"):
+            with DuckDBStore() as store:
+                store_ref = store
+                raise ValueError("테스트 예외")
+
+        # 예외 발생 후에도 연결이 닫혔으므로 쿼리 시 예외 발생
+        assert store_ref is not None
+        with pytest.raises(Exception):
+            store_ref.get_server_specs()
+
+    def test_context_manager_does_not_suppress_exception(self) -> None:
+        """__exit__이 예외를 전파하는지 확인 (억제하지 않음)."""
+        with pytest.raises(RuntimeError, match="전파 테스트"):
+            with DuckDBStore() as store:
+                raise RuntimeError("전파 테스트")
+
+    def test_context_manager_usable_inside_block(
+        self, sample_parsed_info: ParsedDocumentInfo
+    ) -> None:
+        """with 블록 내에서 정상적으로 데이터 저장/조회가 가능한지 확인."""
+        with DuckDBStore() as store:
+            store.store_parsed_info(sample_parsed_info)
+            specs = store.get_server_specs()
+            assert specs is not None
+            assert specs["db_name"] == "TESTDB"
+

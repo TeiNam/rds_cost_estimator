@@ -34,6 +34,15 @@ class DuckDBStore:
         self._create_tables()
         logger.info("DuckDB 저장소 초기화 완료: %s", db_path)
 
+    def __enter__(self) -> "DuckDBStore":
+        """컨텍스트 매니저 진입. 인스턴스 자체를 반환합니다."""
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb) -> None:
+        """컨텍스트 매니저 종료. 연결을 안전하게 닫고 예외는 전파하지 않습니다."""
+        self.close()
+
+
     def _create_tables(self) -> None:
         """분석에 필요한 테이블들을 생성합니다."""
         self._conn.execute("""

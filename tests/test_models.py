@@ -87,7 +87,7 @@ class TestCostRecordRI1YrAnnualCost:
         monthly_fee = 500.0
         record = CostRecord(
             spec=sample_spec,
-            pricing_type=PricingType.RI_1YR,
+            pricing_type=PricingType.RI_1YR_ALL_UPFRONT,
             upfront_fee=upfront_fee,
             monthly_fee=monthly_fee,
         )
@@ -98,7 +98,7 @@ class TestCostRecordRI1YrAnnualCost:
         """선결제 0인 경우 1년 RI 연간 비용 = monthly_fee × 12 확인."""
         record = CostRecord(
             spec=sample_spec,
-            pricing_type=PricingType.RI_1YR,
+            pricing_type=PricingType.RI_1YR_NO_UPFRONT,
             upfront_fee=0.0,
             monthly_fee=300.0,
         )
@@ -110,7 +110,7 @@ class TestCostRecordRI1YrAnnualCost:
         """upfront_fee 또는 monthly_fee가 없으면 annual_cost가 None인지 확인."""
         record = CostRecord(
             spec=sample_spec,
-            pricing_type=PricingType.RI_1YR,
+            pricing_type=PricingType.RI_1YR_ALL_UPFRONT,
             upfront_fee=1000.0,
             # monthly_fee 누락
         )
@@ -126,7 +126,7 @@ class TestCostRecordRI3YrAnnualCost:
         monthly_fee = 400.0
         record = CostRecord(
             spec=sample_spec,
-            pricing_type=PricingType.RI_3YR,
+            pricing_type=PricingType.RI_3YR_ALL_UPFRONT,
             upfront_fee=upfront_fee,
             monthly_fee=monthly_fee,
         )
@@ -137,7 +137,7 @@ class TestCostRecordRI3YrAnnualCost:
         """선결제 0인 경우 3년 RI 연간 비용 = (monthly_fee × 36) / 3 확인."""
         record = CostRecord(
             spec=sample_spec,
-            pricing_type=PricingType.RI_3YR,
+            pricing_type=PricingType.RI_3YR_NO_UPFRONT,
             upfront_fee=0.0,
             monthly_fee=200.0,
         )
@@ -149,7 +149,7 @@ class TestCostRecordRI3YrAnnualCost:
         """monthly_fee가 없으면 annual_cost가 None인지 확인."""
         record = CostRecord(
             spec=sample_spec,
-            pricing_type=PricingType.RI_3YR,
+            pricing_type=PricingType.RI_3YR_ALL_UPFRONT,
             monthly_fee=200.0,
             # upfront_fee 누락
         )
@@ -270,14 +270,78 @@ class TestEnumValues:
     def test_pricing_type_values(self) -> None:
         """PricingType Enum 값 확인."""
         assert PricingType.ON_DEMAND == "on_demand"
-        assert PricingType.RI_1YR == "1yr_partial_upfront"
-        assert PricingType.RI_3YR == "3yr_partial_upfront"
+        assert PricingType.RI_1YR_NO_UPFRONT == "1yr_no_upfront"
+        assert PricingType.RI_1YR_ALL_UPFRONT == "1yr_all_upfront"
+        assert PricingType.RI_3YR_NO_UPFRONT == "3yr_no_upfront"
+        assert PricingType.RI_3YR_ALL_UPFRONT == "3yr_all_upfront"
 
     def test_instance_family_values(self) -> None:
         """InstanceFamily Enum 값 확인."""
+        # Intel 기반
         assert InstanceFamily.R6I == "r6i"
         assert InstanceFamily.R7I == "r7i"
+        assert InstanceFamily.M6I == "m6i"
+        assert InstanceFamily.M7I == "m7i"
+        assert InstanceFamily.X2IDN == "x2idn"
+        # Graviton 기반
+        assert InstanceFamily.R6G == "r6g"
         assert InstanceFamily.R7G == "r7g"
+        assert InstanceFamily.R8G == "r8g"
+        assert InstanceFamily.M6G == "m6g"
+        assert InstanceFamily.M7G == "m7g"
+        # 버스터블
+        assert InstanceFamily.T3 == "t3"
+        assert InstanceFamily.T4G == "t4g"
+
+    def test_instance_family_same_category_r_families(self) -> None:
+        """r 계열 패밀리의 same_category_families가 올바른지 확인."""
+        result = InstanceFamily.same_category_families("r6i")
+        assert "r6i" in result
+        assert "r7i" in result
+        assert "r6g" in result
+        assert "r7g" in result
+        assert "r8g" in result
+        assert "x2idn" in result
+        # m/t 계열은 포함되지 않아야 함
+        assert "m6i" not in result
+        assert "t3" not in result
+
+    def test_instance_family_same_category_m_families(self) -> None:
+        """m 계열 패밀리의 same_category_families가 올바른지 확인."""
+        result = InstanceFamily.same_category_families("m6i")
+        assert "m6i" in result
+        assert "m7i" in result
+        assert "m6g" in result
+        assert "m7g" in result
+        assert "r6i" not in result
+
+    def test_instance_family_same_category_t_families(self) -> None:
+        """t 계열 패밀리의 same_category_families가 올바른지 확인."""
+        result = InstanceFamily.same_category_families("t3")
+        assert "t3" in result
+        assert "t4g" in result
+        assert "r6i" not in result
+
+    def test_instance_family_intel_families(self) -> None:
+        """Intel 패밀리 목록 확인."""
+        result = InstanceFamily.intel_families()
+        assert "r6i" in result
+        assert "r7i" in result
+        assert "m6i" in result
+        assert "m7i" in result
+        assert "x2idn" in result
+        assert "r6g" not in result
+
+    def test_instance_family_graviton_families(self) -> None:
+        """Graviton 패밀리 목록 확인."""
+        result = InstanceFamily.graviton_families()
+        assert "r6g" in result
+        assert "r7g" in result
+        assert "r8g" in result
+        assert "m6g" in result
+        assert "m7g" in result
+        assert "t4g" in result
+        assert "r6i" not in result
 
     def test_migration_strategy_is_str_enum(self) -> None:
         """MigrationStrategy가 str 기반 Enum인지 확인."""

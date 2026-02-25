@@ -1,6 +1,11 @@
 """
 비용 집계 및 절감률 계산 모듈.
 
+.. deprecated::
+    이 모듈은 v1 전용입니다. v2에서는 ``render_markdown_v2``와
+    ``_build_template_data``를 사용하세요.
+    향후 버전에서 제거될 예정입니다.
+
 이 모듈은 여러 CostRecord를 집계하여 인스턴스 유형 + 이관 전략 조합별
 비용 비교표(CostRow 목록)를 생성합니다.
 온프레미스 유지비용 대비 절감률을 계산하여 의사결정 근거 자료를 제공합니다.
@@ -9,6 +14,7 @@
 from __future__ import annotations
 
 import logging
+import warnings
 from typing import Optional
 
 from rds_cost_estimator.models import (
@@ -25,6 +31,10 @@ logger = logging.getLogger(__name__)
 class CostTable:
     """여러 CostRecord를 집계하여 비용 비교표를 생성하는 클래스.
 
+    .. deprecated::
+        CostTable은 v1 전용 클래스입니다. v2에서는 ``_build_template_data``를
+        통해 직접 템플릿 데이터를 구성합니다. 향후 버전에서 제거될 예정입니다.
+
     인스턴스 유형 + 이관 전략 조합별로 온디맨드, 1년 RI, 3년 RI 비용을 집계하고
     온프레미스 유지비용 대비 절감률을 계산합니다.
 
@@ -40,6 +50,14 @@ class CostTable:
             records: CostRecord 목록 (여러 인스턴스 유형 + 요금제 조합)
             on_prem_annual_cost: 온프레미스 연간 유지비용 (USD)
         """
+        # v1 전용 클래스 사용 시 deprecation 경고 발생
+        warnings.warn(
+            "CostTable은 v1 전용 클래스입니다. "
+            "v2에서는 _build_template_data를 사용하세요. "
+            "향후 버전에서 제거될 예정입니다.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         # CostRecord 목록 저장
         self.records = records
         # 온프레미스 연간 유지비용 저장
@@ -97,13 +115,14 @@ class CostTable:
                 on_demand_annual = on_demand_record.annual_cost
 
             # 1년 RI 비용 추출 (is_available=False이면 None)
-            ri_1yr_record = pricing_map.get(PricingType.RI_1YR)
+            # 참고: v2에서는 RI_1YR_ALL_UPFRONT 사용, v1 호환용으로 RI_1YR_NO_UPFRONT도 확인
+            ri_1yr_record = pricing_map.get(PricingType.RI_1YR_ALL_UPFRONT) or pricing_map.get(PricingType.RI_1YR_NO_UPFRONT)
             ri_1yr_annual: Optional[float] = None
             if ri_1yr_record is not None and ri_1yr_record.is_available:
                 ri_1yr_annual = ri_1yr_record.annual_cost
 
             # 3년 RI 비용 추출 (is_available=False이면 None)
-            ri_3yr_record = pricing_map.get(PricingType.RI_3YR)
+            ri_3yr_record = pricing_map.get(PricingType.RI_3YR_ALL_UPFRONT) or pricing_map.get(PricingType.RI_3YR_NO_UPFRONT)
             ri_3yr_annual: Optional[float] = None
             if ri_3yr_record is not None and ri_3yr_record.is_available:
                 ri_3yr_annual = ri_3yr_record.annual_cost

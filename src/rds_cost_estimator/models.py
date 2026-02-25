@@ -14,18 +14,62 @@ from typing import Optional
 
 from pydantic import BaseModel, Field, model_validator
 
+# AWS 공식 월 시간 기준: 365일/12개월 * 24시간 ≈ 730
+HOURS_PER_MONTH = 730
+
 
 class InstanceFamily(str, Enum):
     """지원하는 RDS 인스턴스 패밀리 열거형."""
 
+    # Intel 기반
     R6I = "r6i"
     R7I = "r7i"
+    M6I = "m6i"
+    M7I = "m7i"
+    X2IDN = "x2idn"
+    # Graviton 기반
+    R6G = "r6g"
     R7G = "r7g"
+    R8G = "r8g"
+    M6G = "m6g"
+    M7G = "m7g"
+    # 버스터블
+    T3 = "t3"
+    T4G = "t4g"
 
     @classmethod
     def all_families(cls) -> list[str]:
         """모든 인스턴스 패밀리 값을 리스트로 반환."""
         return [f.value for f in cls]
+
+    @classmethod
+    def intel_families(cls) -> list[str]:
+        """Intel 기반 패밀리 목록."""
+        return [cls.R6I.value, cls.R7I.value, cls.M6I.value, cls.M7I.value, cls.X2IDN.value]
+
+    @classmethod
+    def graviton_families(cls) -> list[str]:
+        """Graviton 기반 패밀리 목록."""
+        return [cls.R6G.value, cls.R7G.value, cls.R8G.value, cls.M6G.value, cls.M7G.value, cls.T4G.value]
+
+    @classmethod
+    def memory_optimized(cls) -> list[str]:
+        """메모리 최적화 패밀리 (r 계열)."""
+        return [cls.R6I.value, cls.R7I.value, cls.R6G.value, cls.R7G.value, cls.R8G.value]
+
+    @classmethod
+    def same_category_families(cls, family: str) -> list[str]:
+        """동일 카테고리(메모리 최적화/범용/버스터블)의 패밀리 목록 반환."""
+        r_families = {cls.R6I.value, cls.R7I.value, cls.R6G.value, cls.R7G.value, cls.R8G.value, cls.X2IDN.value}
+        m_families = {cls.M6I.value, cls.M7I.value, cls.M6G.value, cls.M7G.value}
+        t_families = {cls.T3.value, cls.T4G.value}
+        if family in r_families:
+            return sorted(r_families)
+        if family in m_families:
+            return sorted(m_families)
+        if family in t_families:
+            return sorted(t_families)
+        return [family]
 
 
 class MigrationStrategy(str, Enum):
@@ -43,9 +87,6 @@ class PricingType(str, Enum):
     RI_1YR_ALL_UPFRONT = "1yr_all_upfront"
     RI_3YR_NO_UPFRONT = "3yr_no_upfront"
     RI_3YR_ALL_UPFRONT = "3yr_all_upfront"
-    # 하위 호환용 (Partial Upfront)
-    RI_1YR = "1yr_partial_upfront"
-    RI_3YR = "3yr_partial_upfront"
 
 
 class InstanceSpec(BaseModel):
@@ -77,14 +118,14 @@ class CostRecord(BaseModel):
 
         if self.pricing_type == PricingType.ON_DEMAND:
             if self.hourly_rate is not None:
-                self.annual_cost = self.hourly_rate * 730 * 12
+                self.annual_cost = self.hourly_rate * HOURS_PER_MONTH * 12
         elif self.pricing_type in (
-            PricingType.RI_1YR, PricingType.RI_1YR_NO_UPFRONT, PricingType.RI_1YR_ALL_UPFRONT
+            PricingType.RI_1YR_NO_UPFRONT, PricingType.RI_1YR_ALL_UPFRONT
         ):
             if self.upfront_fee is not None and self.monthly_fee is not None:
                 self.annual_cost = self.upfront_fee + self.monthly_fee * 12
         elif self.pricing_type in (
-            PricingType.RI_3YR, PricingType.RI_3YR_NO_UPFRONT, PricingType.RI_3YR_ALL_UPFRONT
+            PricingType.RI_3YR_NO_UPFRONT, PricingType.RI_3YR_ALL_UPFRONT
         ):
             if self.upfront_fee is not None and self.monthly_fee is not None:
                 total_3yr = self.upfront_fee + self.monthly_fee * 36
@@ -177,16 +218,13 @@ class StorageGrowth(BaseModel):
 
 
 class InstanceRecommendation(BaseModel):
-    """인스턴스 권장 사양 모델 (r6i/r7i 쌍)."""
+    """인스턴스 권장 사양 모델 (동적 패밀리 지원).
 
-    r6i_instance: Optional[str] = None
-    r6i_vcpu: Optional[int] = None
-    r6i_memory_gb: Optional[float] = None
-    r6i_network_gbps: Optional[float] = None
-    r7i_instance: Optional[str] = None
-    r7i_vcpu: Optional[int] = None
-    r7i_memory_gb: Optional[float] = None
-    r7i_network_gbps: Optional[float] = None
+    families 딕셔너리에 패밀리명을 키로, 사양 정보를 값으로 저장합니다.
+    예: {"r6i": {"instance": "db.r6i.4xlarge", "vcpu": 16, ...}, "r7i": {...}}
+    """
+
+    families: dict[str, dict] = Field(default_factory=dict)
 
 
 class ParsedDocumentInfo(BaseModel):

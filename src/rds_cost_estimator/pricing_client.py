@@ -12,12 +12,12 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING
 
 import boto3
 
 from rds_cost_estimator.exceptions import PricingAPIError, PricingDataNotFoundError
-from rds_cost_estimator.models import CostRecord, InstanceSpec, PricingType
+from rds_cost_estimator.models import CostRecord, HOURS_PER_MONTH, InstanceSpec, PricingType
 
 if TYPE_CHECKING:
     pass
@@ -245,16 +245,15 @@ class PricingClient:
         spec: InstanceSpec,
         pricing_type: PricingType,
     ) -> CostRecord:
-        """AWS Pricing API 응답을 CostRecord로 파싱.
+        """AWS Pricing API 응답에서 온디맨드 가격을 파싱하여 CostRecord로 반환.
 
         응답의 PriceList에서 첫 번째 항목을 파싱하여 CostRecord를 생성합니다.
-        온디맨드는 hourly_rate를, RI는 termAttributes로 올바른 term을 선택한 뒤
-        upfront_fee와 monthly_fee를 추출합니다.
+        온디맨드 전용 메서드입니다. RI 파싱은 _parse_ri_response를 사용하세요.
 
         Args:
             response: AWS Pricing GetProducts API 응답 딕셔너리.
             spec: 인스턴스 사양 정보.
-            pricing_type: 요금제 유형.
+            pricing_type: 요금제 유형 (ON_DEMAND만 지원).
 
         Returns:
             파싱된 CostRecord 인스턴스.
@@ -275,106 +274,40 @@ class PricingClient:
         price_item = json.loads(price_list[0])
         terms = price_item.get("terms", {})
 
-        if pricing_type == PricingType.ON_DEMAND:
-            # 온디맨드: terms.OnDemand → priceDimensions → pricePerUnit.USD
-            on_demand_terms = terms.get("OnDemand", {})
-            if not on_demand_terms:
-                raise PricingDataNotFoundError(
-                    f"온디맨드 요금 데이터가 없습니다: {spec.instance_type}"
-                )
-
-            # 첫 번째 요금 항목에서 priceDimensions 추출
-            first_term = next(iter(on_demand_terms.values()))
-            price_dimensions = first_term.get("priceDimensions", {})
-
-            if not price_dimensions:
-                raise PricingDataNotFoundError(
-                    f"온디맨드 priceDimensions가 없습니다: {spec.instance_type}"
-                )
-
-            # 첫 번째 priceDimension에서 시간당 요금 추출
-            first_dimension = next(iter(price_dimensions.values()))
-            hourly_rate_str = (
-                first_dimension.get("pricePerUnit", {}).get("USD", "0")
-            )
-            hourly_rate = float(hourly_rate_str)
-
-            logger.debug(
-                "온디맨드 요금 파싱 완료: %s = $%.4f/hr",
-                spec.instance_type,
-                hourly_rate,
+        # 온디맨드: terms.OnDemand → priceDimensions → pricePerUnit.USD
+        on_demand_terms = terms.get("OnDemand", {})
+        if not on_demand_terms:
+            raise PricingDataNotFoundError(
+                f"온디맨드 요금 데이터가 없습니다: {spec.instance_type}"
             )
 
-            return CostRecord(
-                spec=spec,
-                pricing_type=pricing_type,
-                hourly_rate=hourly_rate,
+        # 첫 번째 요금 항목에서 priceDimensions 추출
+        first_term = next(iter(on_demand_terms.values()))
+        price_dimensions = first_term.get("priceDimensions", {})
+
+        if not price_dimensions:
+            raise PricingDataNotFoundError(
+                f"온디맨드 priceDimensions가 없습니다: {spec.instance_type}"
             )
 
-        else:
-            # RI: termAttributes로 올바른 term 선택 (Partial Upfront)
-            reserved_terms = terms.get("Reserved", {})
-            if not reserved_terms:
-                raise PricingDataNotFoundError(
-                    f"RI 요금 데이터가 없습니다: {spec.instance_type}"
-                )
+        # 첫 번째 priceDimension에서 시간당 요금 추출
+        first_dimension = next(iter(price_dimensions.values()))
+        hourly_rate_str = (
+            first_dimension.get("pricePerUnit", {}).get("USD", "0")
+        )
+        hourly_rate = float(hourly_rate_str)
 
-            # 계약 기간 결정
-            lease_length = "1yr" if pricing_type == PricingType.RI_1YR else "3yr"
+        logger.debug(
+            "온디맨드 요금 파싱 완료: %s = $%.4f/hr",
+            spec.instance_type,
+            hourly_rate,
+        )
 
-            # termAttributes로 Partial Upfront term 찾기
-            matched_term = self._find_ri_term(
-                reserved_terms, lease_length, "Partial Upfront"
-            )
-
-            if matched_term is None:
-                raise PricingDataNotFoundError(
-                    f"RI {lease_length} Partial Upfront term을 찾을 수 없습니다: "
-                    f"{spec.instance_type} / {spec.engine}"
-                )
-
-            price_dimensions = matched_term.get("priceDimensions", {})
-
-            if not price_dimensions:
-                raise PricingDataNotFoundError(
-                    f"RI priceDimensions가 없습니다: {spec.instance_type}"
-                )
-
-            upfront_fee: float = 0.0
-            hourly_fee: float = 0.0
-
-            # priceDimensions를 순회하여 선결제(Upfront Fee)와 시간당 요금(Hrs) 구분
-            for dimension in price_dimensions.values():
-                price_usd = float(
-                    dimension.get("pricePerUnit", {}).get("USD", "0")
-                )
-                unit = dimension.get("unit", "").lower()
-
-                if unit == "quantity":
-                    # 선결제 금액 (Upfront Fee)
-                    upfront_fee = price_usd
-                elif unit == "hrs":
-                    # 시간당 요금
-                    hourly_fee = price_usd
-
-            # 시간당 요금 → 월정액 변환 (24시간 × 30.4375일)
-            monthly_fee = hourly_fee * 24 * 30.4375
-
-            logger.debug(
-                "RI 요금 파싱 완료: %s / %s = 선결제 $%.2f, 시간당 $%.4f, 월정액 $%.2f",
-                spec.instance_type,
-                pricing_type.value,
-                upfront_fee,
-                hourly_fee,
-                monthly_fee,
-            )
-
-            return CostRecord(
-                spec=spec,
-                pricing_type=pricing_type,
-                upfront_fee=upfront_fee,
-                monthly_fee=monthly_fee,
-            )
+        return CostRecord(
+            spec=spec,
+            pricing_type=pricing_type,
+            hourly_rate=hourly_rate,
+        )
 
     async def fetch_on_demand(self, spec: InstanceSpec) -> CostRecord:
         """온디맨드 가격 조회.
@@ -404,7 +337,7 @@ class PricingClient:
 
         try:
             # 동기 boto3 호출을 비동기로 래핑 (스레드 풀 실행)
-            loop = asyncio.get_event_loop()
+            loop = asyncio.get_running_loop()
             response = await loop.run_in_executor(
                 None,
                 lambda: self._client.get_products(
@@ -436,63 +369,6 @@ class PricingClient:
         )
         return record
 
-    async def fetch_reserved_option(
-        self,
-        spec: InstanceSpec,
-        term: Literal["1yr", "3yr"],
-        purchase_option: str = "Partial Upfront",
-    ) -> CostRecord:
-        """예약 인스턴스(RI) 가격 조회 - 결제 옵션 지정 가능.
-
-        Args:
-            spec: 인스턴스 사양 정보.
-            term: 계약 기간 ("1yr" 또는 "3yr").
-            purchase_option: 결제 옵션 ("No Upfront", "Partial Upfront", "All Upfront")
-
-        Returns:
-            RI 요금 정보가 담긴 CostRecord.
-        """
-        # PricingType 결정
-        type_map = {
-            ("1yr", "No Upfront"): PricingType.RI_1YR_NO_UPFRONT,
-            ("1yr", "Partial Upfront"): PricingType.RI_1YR,
-            ("1yr", "All Upfront"): PricingType.RI_1YR_ALL_UPFRONT,
-            ("3yr", "No Upfront"): PricingType.RI_3YR_NO_UPFRONT,
-            ("3yr", "Partial Upfront"): PricingType.RI_3YR,
-            ("3yr", "All Upfront"): PricingType.RI_3YR_ALL_UPFRONT,
-        }
-        pricing_type = type_map.get((term, purchase_option), PricingType.RI_1YR)
-        cache_key = self._cache_key(spec, pricing_type)
-
-        if cache_key in self._cache:
-            logger.debug("캐시 히트: %s", cache_key)
-            return self._cache[cache_key]
-
-        filters = self._build_filters(spec, term)
-
-        try:
-            loop = asyncio.get_event_loop()
-            response = await loop.run_in_executor(
-                None,
-                lambda: self._client.get_products(
-                    ServiceCode="AmazonRDS",
-                    Filters=filters,
-                    MaxResults=1,
-                ),
-            )
-        except Exception as exc:
-            logger.error(
-                "RI 가격 조회 실패: %s / %s / %s / %s - %s",
-                spec.instance_type, spec.region, term, purchase_option, exc,
-            )
-            raise PricingAPIError(
-                f"RI 가격 조회 실패: {spec.instance_type} / {spec.region} / {term}",
-                instance_spec=spec,
-            ) from exc
-
-        record = self._parse_ri_response(response, spec, pricing_type, term, purchase_option)
-        self._cache[cache_key] = record
-        return record
 
     def _parse_ri_response(
         self,
@@ -543,7 +419,7 @@ class PricingClient:
             elif unit == "hrs":
                 hourly_fee = price_usd
 
-        monthly_fee = hourly_fee * 730
+        monthly_fee = hourly_fee * HOURS_PER_MONTH
 
         logger.debug(
             "RI 요금 파싱 완료: %s / %s / %s = 선결제 $%.2f, 월정액 $%.2f",
@@ -557,74 +433,6 @@ class PricingClient:
             upfront_fee=upfront_fee,
             monthly_fee=monthly_fee,
         )
-
-    async def fetch_reserved(
-        self,
-        spec: InstanceSpec,
-        term: Literal["1yr", "3yr"],
-    ) -> CostRecord:
-        """예약 인스턴스(RI) 가격 조회.
-
-        캐시를 먼저 확인하고, 없으면 AWS Pricing API를 비동기로 호출합니다.
-
-        Args:
-            spec: 인스턴스 사양 정보.
-            term: 계약 기간 ("1yr" 또는 "3yr").
-
-        Returns:
-            RI 요금 정보가 담긴 CostRecord.
-
-        Raises:
-            PricingAPIError: AWS Pricing API 호출이 실패한 경우.
-            PricingDataNotFoundError: 가격 데이터가 존재하지 않는 경우.
-        """
-        # 계약 기간에 따라 PricingType 결정
-        pricing_type = PricingType.RI_1YR if term == "1yr" else PricingType.RI_3YR
-        cache_key = self._cache_key(spec, pricing_type)
-
-        # 캐시 확인: 이미 조회한 데이터가 있으면 반환
-        if cache_key in self._cache:
-            logger.debug("캐시 히트: %s", cache_key)
-            return self._cache[cache_key]
-
-        # AWS Pricing API 필터 생성 (term: "1yr" 또는 "3yr")
-        filters = self._build_filters(spec, term)
-
-        try:
-            # 동기 boto3 호출을 비동기로 래핑 (스레드 풀 실행)
-            loop = asyncio.get_event_loop()
-            response = await loop.run_in_executor(
-                None,
-                lambda: self._client.get_products(
-                    ServiceCode="AmazonRDS",
-                    Filters=filters,
-                    MaxResults=1,
-                ),
-            )
-        except Exception as exc:
-            logger.error(
-                "RI 가격 조회 실패: %s / %s / %s - %s",
-                spec.instance_type,
-                spec.region,
-                term,
-                exc,
-            )
-            raise PricingAPIError(
-                f"RI 가격 조회 실패: {spec.instance_type} / {spec.region} / {term}",
-                instance_spec=spec,
-            ) from exc
-
-        # 응답 파싱 후 캐시 저장
-        record = self._parse_response(response, spec, pricing_type)
-        self._cache[cache_key] = record
-        logger.info(
-            "RI 가격 조회 완료: %s / %s / %s = $%.2f/yr",
-            spec.instance_type,
-            spec.region,
-            term,
-            record.annual_cost or 0,
-        )
-        return record
 
     async def fetch_all(self, spec: InstanceSpec) -> list[CostRecord]:
         """온디맨드 + 모든 RI 옵션 가격을 한 번의 API 호출로 조회.
@@ -647,26 +455,31 @@ class PricingClient:
             PricingType.RI_3YR_ALL_UPFRONT: ("3yr", "All Upfront"),
         }
 
-        # 캐시에 모두 있으면 바로 반환
-        all_cached = True
+        # 부분 캐시 히트: 캐시에 있는 항목은 수집, 누락된 것만 API 조회
+        cached_records: dict[PricingType, CostRecord] = {}
+        missing_types: list[PricingType] = []
         for pt in pricing_types:
             ck = self._cache_key(spec, pt)
             if ck in self._cache:
-                records.append(self._cache[ck])
+                cached_records[pt] = self._cache[ck]
             else:
-                all_cached = False
-                break
+                missing_types.append(pt)
 
-        if all_cached:
+        if not missing_types:
             logger.debug("캐시 히트 (전체): %s", spec.instance_type)
-            return records
+            return [cached_records[pt] for pt in pricing_types]
 
-        # API 호출
+        if cached_records:
+            logger.debug(
+                "부분 캐시 히트: %s — 캐시 %d건, 미스 %d건",
+                spec.instance_type, len(cached_records), len(missing_types),
+            )
+
+        # API 호출 (누락된 타입이 있을 때만)
         filters = self._build_filters(spec, "all")
-        records = []
 
         try:
-            loop = asyncio.get_event_loop()
+            loop = asyncio.get_running_loop()
             response = await loop.run_in_executor(
                 None,
                 lambda: self._client.get_products(
@@ -680,10 +493,14 @@ class PricingClient:
                 "가격 조회 실패: %s / %s - %s",
                 spec.instance_type, spec.region, exc,
             )
+            # 캐시된 레코드는 유지, 누락된 것만 N/A 처리
             for pt in pricing_types:
-                records.append(
-                    CostRecord(spec=spec, pricing_type=pt, is_available=False)
-                )
+                if pt in cached_records:
+                    records.append(cached_records[pt])
+                else:
+                    records.append(
+                        CostRecord(spec=spec, pricing_type=pt, is_available=False)
+                    )
             return records
 
         # 각 요금제별로 파싱 시도
@@ -732,10 +549,8 @@ class PricingClient:
     _RI_OFFERING_PARAMS: dict[str, tuple[str, str]] = {
         "1yr_no_upfront": ("31536000", "No Upfront"),
         "1yr_all_upfront": ("31536000", "All Upfront"),
-        "1yr_partial_upfront": ("31536000", "Partial Upfront"),
         "3yr_no_upfront": ("94608000", "No Upfront"),
         "3yr_all_upfront": ("94608000", "All Upfront"),
-        "3yr_partial_upfront": ("94608000", "Partial Upfront"),
     }
 
     # 엔진 코드 → ProductDescription 매핑
@@ -778,7 +593,7 @@ class PricingClient:
         try:
             # RDS API는 해당 리전에서 호출
             rds_client = self._session.client("rds", region_name=spec.region)
-            loop = asyncio.get_event_loop()
+            loop = asyncio.get_running_loop()
             response = await loop.run_in_executor(
                 None,
                 lambda: rds_client.describe_reserved_db_instances_offerings(
@@ -818,18 +633,16 @@ class PricingClient:
 
         # 시간당 요금: RecurringCharges 우선, 없으면 UsagePrice
         hourly_rate = recurring_hourly if recurring_hourly > 0 else usage_price
-        monthly_fee = hourly_rate * 730  # 730시간/월
+        monthly_fee = hourly_rate * HOURS_PER_MONTH  # 월 시간 상수 사용
 
-        # PricingType 결정
+        # PricingType 결정 (Partial Upfront는 v1 전용으로 제거됨)
         pt_map = {
             "1yr_no_upfront": PricingType.RI_1YR_NO_UPFRONT,
             "1yr_all_upfront": PricingType.RI_1YR_ALL_UPFRONT,
-            "1yr_partial_upfront": PricingType.RI_1YR,
             "3yr_no_upfront": PricingType.RI_3YR_NO_UPFRONT,
             "3yr_all_upfront": PricingType.RI_3YR_ALL_UPFRONT,
-            "3yr_partial_upfront": PricingType.RI_3YR,
         }
-        pricing_type = pt_map.get(pricing_type_value, PricingType.RI_1YR)
+        pricing_type = pt_map.get(pricing_type_value, PricingType.RI_1YR_NO_UPFRONT)
 
         record = CostRecord(
             spec=spec,

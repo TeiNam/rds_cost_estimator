@@ -3,6 +3,10 @@
 
 CostTable 데이터를 rich 라이브러리로 콘솔에 표로 출력하거나
 JSON 파일, 템플릿 기반 Markdown 리포트로 저장합니다.
+
+.. note::
+    ``render_console``, ``render_markdown``, ``render_json``은 v1 전용입니다.
+    v2에서는 ``render_markdown_v2``와 ``render_json_v2``를 사용하세요.
 """
 
 from __future__ import annotations
@@ -11,6 +15,7 @@ import json
 import logging
 import os
 import re
+import warnings
 from datetime import datetime
 from typing import Optional
 
@@ -50,6 +55,37 @@ def _find_template() -> Optional[str]:
         if os.path.isfile(abs_path):
             return abs_path
     return None
+
+def _replace_family_in_placeholders(template: str, family_a: str, family_b: str | None) -> str:
+    """중괄호 플레이스홀더 내부의 family_a/family_b만 치환합니다.
+
+    일반 텍스트에 포함된 "family_a"/"family_b" 문자열은 보존하고,
+    {family_a}, {spec_family_a_od_monthly} 등 플레이스홀더 내부만 치환합니다.
+
+    Args:
+        template: 원본 템플릿 문자열
+        family_a: family_a를 대체할 실제 패밀리명
+        family_b: family_b를 대체할 실제 패밀리명 (None이면 치환하지 않음)
+
+    Returns:
+        플레이스홀더 내부만 치환된 템플릿 문자열
+    """
+    # 단독 플레이스홀더 {family_a}, {family_b}는 2단계에서 template_data 키로 치환되므로 제외
+    standalone = {"{family_a}", "{family_b}"}
+
+    def replacer(match: re.Match) -> str:
+        content = match.group(0)
+        # 단독 플레이스홀더는 건너뜀 (2단계에서 처리)
+        if content in standalone:
+            return content
+        content = content.replace("family_a", family_a)
+        if family_b:
+            content = content.replace("family_b", family_b)
+        return content
+
+    # {...} 패턴과 ${...} 패턴 모두 매칭
+    return re.sub(r'\$?\{[^}]*\}', replacer, template)
+
 
 
 def _remove_na_rows(content: str) -> str:
@@ -150,7 +186,20 @@ class ReportRenderer:
 
     @staticmethod
     def render_console(table: CostTable) -> None:
-        """CostTable 데이터를 콘솔에 표로 출력합니다."""
+        """CostTable 데이터를 콘솔에 표로 출력합니다.
+
+        .. deprecated::
+            v1 전용 메서드입니다. v2에서는 ``render_markdown_v2``를 사용하세요.
+            향후 버전에서 제거될 예정입니다.
+        """
+        # v1 전용 메서드 사용 시 deprecation 경고 발생
+        warnings.warn(
+            "render_console은 v1 전용 메서드입니다. "
+            "v2에서는 render_markdown_v2를 사용하세요. "
+            "향후 버전에서 제거될 예정입니다.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         console = Console()
         rows = table.compute_savings()
 
@@ -185,7 +234,20 @@ class ReportRenderer:
 
     @staticmethod
     def render_json(table: CostTable, output_path: str) -> None:
-        """CostTable 데이터를 JSON 파일로 저장합니다."""
+        """CostTable 데이터를 JSON 파일로 저장합니다.
+
+        .. deprecated::
+            v1 전용 메서드입니다. v2에서는 ``render_json_v2``를 사용하세요.
+            향후 버전에서 제거될 예정입니다.
+        """
+        # v1 전용 메서드 사용 시 deprecation 경고 발생
+        warnings.warn(
+            "render_json은 v1 전용 메서드입니다. "
+            "v2에서는 render_json_v2를 사용하세요. "
+            "향후 버전에서 제거될 예정입니다.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         data = table.to_dict()
         json_str = json.dumps(data, ensure_ascii=False, indent=2)
         with open(output_path, "w", encoding="utf-8") as f:
@@ -208,7 +270,20 @@ class ReportRenderer:
         source_engine: str = "",
         region: str = "",
     ) -> None:
-        """CostTable 데이터를 Markdown 리포트 파일로 저장합니다 (하위 호환)."""
+        """CostTable 데이터를 Markdown 리포트 파일로 저장합니다 (하위 호환).
+
+        .. deprecated::
+            v1 전용 메서드입니다. v2에서는 ``render_markdown_v2``를 사용하세요.
+            향후 버전에서 제거될 예정입니다.
+        """
+        # v1 전용 메서드 사용 시 deprecation 경고 발생
+        warnings.warn(
+            "render_markdown은 v1 전용 메서드입니다. "
+            "v2에서는 render_markdown_v2를 사용하세요. "
+            "향후 버전에서 제거될 예정입니다.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         rows = table.compute_savings()
         if not rows:
             with open(output_path, "w", encoding="utf-8") as f:
@@ -274,6 +349,8 @@ class ReportRenderer:
         """템플릿 v2 기반 Markdown 리포트를 생성합니다.
 
         cost_report_template_v2.md의 {placeholder}를 실제 데이터로 치환합니다.
+        동적 패밀리 지원: 템플릿의 family_a/family_b를 실제 패밀리명으로 먼저 치환한 후,
+        패밀리명 기반 플레이스홀더를 데이터로 치환합니다.
 
         Args:
             template_data: Estimator.run_v2()가 반환한 플레이스홀더 데이터
@@ -298,20 +375,23 @@ class ReportRenderer:
         with open(template_path, "r", encoding="utf-8") as f:
             template_content = f.read()
 
-        # {placeholder} 치환
-        # ${placeholder} 형태 (달러 기호 포함)와 {placeholder} 형태 모두 처리
+        # 1단계: 플레이스홀더 내부의 family_a/family_b만 실제 패밀리명으로 치환
+        # 중괄호 밖의 일반 텍스트 "family_a"/"family_b"는 보존
+        family_a = template_data.get("family_a", "r6i")
+        family_b = template_data.get("family_b", "N/A")
+        result = _replace_family_in_placeholders(template_content, family_a, family_b)
+
+        # 2단계: {placeholder} 치환
         def replace_placeholder(match: re.Match) -> str:
             key = match.group(1)
             value = template_data.get(key)
             if value is not None:
                 return str(value)
-            # 치환할 값이 없으면 원본 유지
             return match.group(0)
 
-        # {key} 패턴 치환 ($ 접두사 없는 것)
-        result = re.sub(r"\{(\w+)\}", replace_placeholder, template_content)
+        result = re.sub(r"\{(\w+)\}", replace_placeholder, result)
 
-        # ${key} 패턴 치환 (달러 기호 포함 - 비용 필드)
+        # 3단계: ${placeholder} 치환 (달러 기호 포함 - 비용 필드)
         def replace_dollar_placeholder(match: re.Match) -> str:
             key = match.group(1)
             value = template_data.get(key)
@@ -323,6 +403,15 @@ class ReportRenderer:
 
         # N/A만 있는 테이블 행 제거 및 상품 부재 안내 추가
         result = _remove_na_rows(result)
+
+        # 4단계: 비Oracle 엔진일 때 Refactoring 비교 섹션 제거
+        if not template_data.get("refac_section_visible", False):
+            result = re.sub(
+                r"\n---\n\n## 8\. 이관 전략별 비용 비교.*?(?=\n---\n)",
+                "",
+                result,
+                flags=re.DOTALL,
+            )
 
         # 파일 저장
         os.makedirs(os.path.dirname(output_path) or ".", exist_ok=True)

@@ -12,6 +12,7 @@
 | **리포트 생성일** | {report_date} |
 | **분석 기준** | AWR/Statspack 기반 |
 | **요금 기준일** | {pricing_date} |
+| **비교 인스턴스 패밀리** | {family_a} / {family_b} |
 
 ---
 
@@ -65,27 +66,25 @@
 
 > 현재 온프레미스 서버와 동일한 수준의 리소스를 제공하는 RDS 인스턴스입니다.
 
-| 항목 | r6i | r7i |
+| 항목 | {family_a} | {family_b} |
 |------|-----|-----|
-| **인스턴스 타입** | **{spec_r6i_instance}** | **{spec_r7i_instance}** |
-| vCPU | {spec_r6i_vcpu} | {spec_r7i_vcpu} |
-| 메모리 | {spec_r6i_memory} GB | {spec_r7i_memory} GB |
-| 네트워크 대역폭 | {spec_r6i_network} Gbps | {spec_r7i_network} Gbps |
-| 프로세서 | 3세대 Intel Xeon | 4세대 Intel Xeon (Sapphire Rapids) |
+| **인스턴스 타입** | **{spec_family_a_instance}** | **{spec_family_b_instance}** |
+| vCPU | {spec_family_a_vcpu} | {spec_family_b_vcpu} |
+| 메모리 | {spec_family_a_memory} GB | {spec_family_b_memory} GB |
+| 네트워크 대역폭 | {spec_family_a_network} Gbps | {spec_family_b_network} Gbps |
 
 ### 2-2. SGA 기반 최적화 권장 (비용 최적화)
 
 > 권장 SGA({recommended_sga}GB) + 여유율({buffer_rate}%) 기준으로 산정합니다.
 
-| 항목 | r6i | r7i |
+| 항목 | {family_a} | {family_b} |
 |------|-----|-----|
-| **인스턴스 타입** | **{sga_r6i_instance}** | **{sga_r7i_instance}** |
-| vCPU | {sga_r6i_vcpu} | {sga_r7i_vcpu} |
-| 메모리 | {sga_r6i_memory} GB | {sga_r7i_memory} GB |
-| 네트워크 대역폭 | {sga_r6i_network} Gbps | {sga_r7i_network} Gbps |
-| 프로세서 | 3세대 Intel Xeon | 4세대 Intel Xeon (Sapphire Rapids) |
+| **인스턴스 타입** | **{sga_family_a_instance}** | **{sga_family_b_instance}** |
+| vCPU | {sga_family_a_vcpu} | {sga_family_b_vcpu} |
+| 메모리 | {sga_family_a_memory} GB | {sga_family_b_memory} GB |
+| 네트워크 대역폭 | {sga_family_a_network} Gbps | {sga_family_b_network} Gbps |
 
-> 💡 **r7i vs r6i**: r7i는 r6i 대비 약 15~20% 향상된 컴퓨팅 성능을 제공합니다. 동일 사이즈에서 더 높은 처리량이 필요하거나, 한 단계 낮은 사이즈로 비용 절감을 노릴 수 있습니다.
+> 💡 **{family_b} vs {family_a}**: 동일 사이즈에서 세대 차이에 따른 성능 향상이 있을 수 있습니다. 한 단계 낮은 사이즈로 비용 절감을 노릴 수 있습니다.
 
 ---
 
@@ -166,15 +165,15 @@
 
 ## 5. 인스턴스 + 스토리지 + 네트워크 통합 비용: 현재 서버 사양 매칭
 
-### 5-1. r6i 계열 ({spec_r6i_instance})
+### 5-1. {family_a} 계열 ({spec_family_a_instance})
 
 #### Single-AZ
 
 | 요금 옵션 | 인스턴스/월 | 스토리지/월 | 네트워크/월 | **월 합계** | **연 합계** |
 |-----------|-----------|-----------|-----------|-----------|-----------|
-| **On-Demand** | ${spec_r6i_od_monthly} | ${stor_total_0y} | ${net_monthly} | **${spec_r6i_od_total_monthly}** | **${spec_r6i_od_total_yearly}** |
-| **1년 RI (All Upfront)** | ${spec_r6i_ri1au_monthly} | ${stor_total_0y} | ${net_monthly} | **${spec_r6i_ri1au_total_monthly}** | **${spec_r6i_ri1au_total_yearly}** |
-| **3년 RI (All Upfront)** | ${spec_r6i_ri3au_monthly} | ${stor_total_0y} | ${net_monthly} | **${spec_r6i_ri3au_total_monthly}** | **${spec_r6i_ri3au_total_yearly}** |
+| **On-Demand** | ${spec_family_a_od_monthly} | ${stor_total_0y} | ${net_monthly} | **${spec_family_a_od_total_monthly}** | **${spec_family_a_od_total_yearly}** |
+| **1년 RI (All Upfront)** | ${spec_family_a_ri1au_monthly} | ${stor_total_0y} | ${net_monthly} | **${spec_family_a_ri1au_total_monthly}** | **${spec_family_a_ri1au_total_yearly}** |
+| **3년 RI (All Upfront)** | ${spec_family_a_ri3au_monthly} | ${stor_total_0y} | ${net_monthly} | **${spec_family_a_ri3au_total_monthly}** | **${spec_family_a_ri3au_total_yearly}** |
 
 > 네트워크 비용은 {net_scenario} 시나리오 기준입니다. 같은 AZ 배치 시 $0입니다.
 
@@ -182,69 +181,69 @@
 
 | 요금 옵션 | 인스턴스/월 | 스토리지/월 | 네트워크/월 | **월 합계** | **연 합계** |
 |-----------|-----------|-----------|-----------|-----------|-----------|
-| **On-Demand** | ${spec_r6i_maz_od_monthly} | ${stor_maz_total_0y} | ${net_maz_monthly} | **${spec_r6i_maz_od_total_monthly}** | **${spec_r6i_maz_od_total_yearly}** |
-| **1년 RI (All Upfront)** | ${spec_r6i_maz_ri1au_monthly} | ${stor_maz_total_0y} | ${net_maz_monthly} | **${spec_r6i_maz_ri1au_total_monthly}** | **${spec_r6i_maz_ri1au_total_yearly}** |
-| **3년 RI (All Upfront)** | ${spec_r6i_maz_ri3au_monthly} | ${stor_maz_total_0y} | ${net_maz_monthly} | **${spec_r6i_maz_ri3au_total_monthly}** | **${spec_r6i_maz_ri3au_total_yearly}** |
+| **On-Demand** | ${spec_family_a_maz_od_monthly} | ${stor_maz_total_0y} | ${net_maz_monthly} | **${spec_family_a_maz_od_total_monthly}** | **${spec_family_a_maz_od_total_yearly}** |
+| **1년 RI (All Upfront)** | ${spec_family_a_maz_ri1au_monthly} | ${stor_maz_total_0y} | ${net_maz_monthly} | **${spec_family_a_maz_ri1au_total_monthly}** | **${spec_family_a_maz_ri1au_total_yearly}** |
+| **3년 RI (All Upfront)** | ${spec_family_a_maz_ri3au_monthly} | ${stor_maz_total_0y} | ${net_maz_monthly} | **${spec_family_a_maz_ri3au_total_monthly}** | **${spec_family_a_maz_ri3au_total_yearly}** |
 
 > ⚠️ Multi-AZ: {maz_storage_note}
 
-### 5-2. r7i 계열 ({spec_r7i_instance})
+### 5-2. {family_b} 계열 ({spec_family_b_instance})
 
 #### Single-AZ
 
 | 요금 옵션 | 인스턴스/월 | 스토리지/월 | 네트워크/월 | **월 합계** | **연 합계** |
 |-----------|-----------|-----------|-----------|-----------|-----------|
-| **On-Demand** | ${spec_r7i_od_monthly} | ${stor_total_0y} | ${net_monthly} | **${spec_r7i_od_total_monthly}** | **${spec_r7i_od_total_yearly}** |
-| **1년 RI (All Upfront)** | ${spec_r7i_ri1au_monthly} | ${stor_total_0y} | ${net_monthly} | **${spec_r7i_ri1au_total_monthly}** | **${spec_r7i_ri1au_total_yearly}** |
-| **3년 RI (All Upfront)** | ${spec_r7i_ri3au_monthly} | ${stor_total_0y} | ${net_monthly} | **${spec_r7i_ri3au_total_monthly}** | **${spec_r7i_ri3au_total_yearly}** |
+| **On-Demand** | ${spec_family_b_od_monthly} | ${stor_total_0y} | ${net_monthly} | **${spec_family_b_od_total_monthly}** | **${spec_family_b_od_total_yearly}** |
+| **1년 RI (All Upfront)** | ${spec_family_b_ri1au_monthly} | ${stor_total_0y} | ${net_monthly} | **${spec_family_b_ri1au_total_monthly}** | **${spec_family_b_ri1au_total_yearly}** |
+| **3년 RI (All Upfront)** | ${spec_family_b_ri3au_monthly} | ${stor_total_0y} | ${net_monthly} | **${spec_family_b_ri3au_total_monthly}** | **${spec_family_b_ri3au_total_yearly}** |
 
 #### Multi-AZ
 
 | 요금 옵션 | 인스턴스/월 | 스토리지/월 | 네트워크/월 | **월 합계** | **연 합계** |
 |-----------|-----------|-----------|-----------|-----------|-----------|
-| **On-Demand** | ${spec_r7i_maz_od_monthly} | ${stor_maz_total_0y} | ${net_maz_monthly} | **${spec_r7i_maz_od_total_monthly}** | **${spec_r7i_maz_od_total_yearly}** |
-| **1년 RI (All Upfront)** | ${spec_r7i_maz_ri1au_monthly} | ${stor_maz_total_0y} | ${net_maz_monthly} | **${spec_r7i_maz_ri1au_total_monthly}** | **${spec_r7i_maz_ri1au_total_yearly}** |
-| **3년 RI (All Upfront)** | ${spec_r7i_maz_ri3au_monthly} | ${stor_maz_total_0y} | ${net_maz_monthly} | **${spec_r7i_maz_ri3au_total_monthly}** | **${spec_r7i_maz_ri3au_total_yearly}** |
+| **On-Demand** | ${spec_family_b_maz_od_monthly} | ${stor_maz_total_0y} | ${net_maz_monthly} | **${spec_family_b_maz_od_total_monthly}** | **${spec_family_b_maz_od_total_yearly}** |
+| **1년 RI (All Upfront)** | ${spec_family_b_maz_ri1au_monthly} | ${stor_maz_total_0y} | ${net_maz_monthly} | **${spec_family_b_maz_ri1au_total_monthly}** | **${spec_family_b_maz_ri1au_total_yearly}** |
+| **3년 RI (All Upfront)** | ${spec_family_b_maz_ri3au_monthly} | ${stor_maz_total_0y} | ${net_maz_monthly} | **${spec_family_b_maz_ri3au_total_monthly}** | **${spec_family_b_maz_ri3au_total_yearly}** |
 
 ---
 
 ## 6. 인스턴스 + 스토리지 + 네트워크 통합 비용: SGA 기반 최적화
 
-### 6-1. r6i 계열 ({sga_r6i_instance})
+### 6-1. {family_a} 계열 ({sga_family_a_instance})
 
 #### Single-AZ
 
 | 요금 옵션 | 인스턴스/월 | 스토리지/월 | 네트워크/월 | **월 합계** | **연 합계** |
 |-----------|-----------|-----------|-----------|-----------|-----------|
-| **On-Demand** | ${sga_r6i_od_monthly} | ${stor_total_0y} | ${net_monthly} | **${sga_r6i_od_total_monthly}** | **${sga_r6i_od_total_yearly}** |
-| **1년 RI (All Upfront)** | ${sga_r6i_ri1au_monthly} | ${stor_total_0y} | ${net_monthly} | **${sga_r6i_ri1au_total_monthly}** | **${sga_r6i_ri1au_total_yearly}** |
-| **3년 RI (All Upfront)** | ${sga_r6i_ri3au_monthly} | ${stor_total_0y} | ${net_monthly} | **${sga_r6i_ri3au_total_monthly}** | **${sga_r6i_ri3au_total_yearly}** |
+| **On-Demand** | ${sga_family_a_od_monthly} | ${stor_total_0y} | ${net_monthly} | **${sga_family_a_od_total_monthly}** | **${sga_family_a_od_total_yearly}** |
+| **1년 RI (All Upfront)** | ${sga_family_a_ri1au_monthly} | ${stor_total_0y} | ${net_monthly} | **${sga_family_a_ri1au_total_monthly}** | **${sga_family_a_ri1au_total_yearly}** |
+| **3년 RI (All Upfront)** | ${sga_family_a_ri3au_monthly} | ${stor_total_0y} | ${net_monthly} | **${sga_family_a_ri3au_total_monthly}** | **${sga_family_a_ri3au_total_yearly}** |
 
 #### Multi-AZ
 
 | 요금 옵션 | 인스턴스/월 | 스토리지/월 | 네트워크/월 | **월 합계** | **연 합계** |
 |-----------|-----------|-----------|-----------|-----------|-----------|
-| **On-Demand** | ${sga_r6i_maz_od_monthly} | ${stor_maz_total_0y} | ${net_maz_monthly} | **${sga_r6i_maz_od_total_monthly}** | **${sga_r6i_maz_od_total_yearly}** |
-| **1년 RI (All Upfront)** | ${sga_r6i_maz_ri1au_monthly} | ${stor_maz_total_0y} | ${net_maz_monthly} | **${sga_r6i_maz_ri1au_total_monthly}** | **${sga_r6i_maz_ri1au_total_yearly}** |
-| **3년 RI (All Upfront)** | ${sga_r6i_maz_ri3au_monthly} | ${stor_maz_total_0y} | ${net_maz_monthly} | **${sga_r6i_maz_ri3au_total_monthly}** | **${sga_r6i_maz_ri3au_total_yearly}** |
+| **On-Demand** | ${sga_family_a_maz_od_monthly} | ${stor_maz_total_0y} | ${net_maz_monthly} | **${sga_family_a_maz_od_total_monthly}** | **${sga_family_a_maz_od_total_yearly}** |
+| **1년 RI (All Upfront)** | ${sga_family_a_maz_ri1au_monthly} | ${stor_maz_total_0y} | ${net_maz_monthly} | **${sga_family_a_maz_ri1au_total_monthly}** | **${sga_family_a_maz_ri1au_total_yearly}** |
+| **3년 RI (All Upfront)** | ${sga_family_a_maz_ri3au_monthly} | ${stor_maz_total_0y} | ${net_maz_monthly} | **${sga_family_a_maz_ri3au_total_monthly}** | **${sga_family_a_maz_ri3au_total_yearly}** |
 
-### 6-2. r7i 계열 ({sga_r7i_instance})
+### 6-2. {family_b} 계열 ({sga_family_b_instance})
 
 #### Single-AZ
 
 | 요금 옵션 | 인스턴스/월 | 스토리지/월 | 네트워크/월 | **월 합계** | **연 합계** |
 |-----------|-----------|-----------|-----------|-----------|-----------|
-| **On-Demand** | ${sga_r7i_od_monthly} | ${stor_total_0y} | ${net_monthly} | **${sga_r7i_od_total_monthly}** | **${sga_r7i_od_total_yearly}** |
-| **1년 RI (All Upfront)** | ${sga_r7i_ri1au_monthly} | ${stor_total_0y} | ${net_monthly} | **${sga_r7i_ri1au_total_monthly}** | **${sga_r7i_ri1au_total_yearly}** |
-| **3년 RI (All Upfront)** | ${sga_r7i_ri3au_monthly} | ${stor_total_0y} | ${net_monthly} | **${sga_r7i_ri3au_total_monthly}** | **${sga_r7i_ri3au_total_yearly}** |
+| **On-Demand** | ${sga_family_b_od_monthly} | ${stor_total_0y} | ${net_monthly} | **${sga_family_b_od_total_monthly}** | **${sga_family_b_od_total_yearly}** |
+| **1년 RI (All Upfront)** | ${sga_family_b_ri1au_monthly} | ${stor_total_0y} | ${net_monthly} | **${sga_family_b_ri1au_total_monthly}** | **${sga_family_b_ri1au_total_yearly}** |
+| **3년 RI (All Upfront)** | ${sga_family_b_ri3au_monthly} | ${stor_total_0y} | ${net_monthly} | **${sga_family_b_ri3au_total_monthly}** | **${sga_family_b_ri3au_total_yearly}** |
 
 #### Multi-AZ
 
 | 요금 옵션 | 인스턴스/월 | 스토리지/월 | 네트워크/월 | **월 합계** | **연 합계** |
 |-----------|-----------|-----------|-----------|-----------|-----------|
-| **On-Demand** | ${sga_r7i_maz_od_monthly} | ${stor_maz_total_0y} | ${net_maz_monthly} | **${sga_r7i_maz_od_total_monthly}** | **${sga_r7i_maz_od_total_yearly}** |
-| **1년 RI (All Upfront)** | ${sga_r7i_maz_ri1au_monthly} | ${stor_maz_total_0y} | ${net_maz_monthly} | **${sga_r7i_maz_ri1au_total_monthly}** | **${sga_r7i_maz_ri1au_total_yearly}** |
-| **3년 RI (All Upfront)** | ${sga_r7i_maz_ri3au_monthly} | ${stor_maz_total_0y} | ${net_maz_monthly} | **${sga_r7i_maz_ri3au_total_monthly}** | **${sga_r7i_maz_ri3au_total_yearly}** |
+| **On-Demand** | ${sga_family_b_maz_od_monthly} | ${stor_maz_total_0y} | ${net_maz_monthly} | **${sga_family_b_maz_od_total_monthly}** | **${sga_family_b_maz_od_total_yearly}** |
+| **1년 RI (All Upfront)** | ${sga_family_b_maz_ri1au_monthly} | ${stor_maz_total_0y} | ${net_maz_monthly} | **${sga_family_b_maz_ri1au_total_monthly}** | **${sga_family_b_maz_ri1au_total_yearly}** |
+| **3년 RI (All Upfront)** | ${sga_family_b_maz_ri3au_monthly} | ${stor_maz_total_0y} | ${net_maz_monthly} | **${sga_family_b_maz_ri3au_total_monthly}** | **${sga_family_b_maz_ri3au_total_yearly}** |
 
 ---
 
@@ -254,44 +253,74 @@
 
 > 모든 금액은 스토리지 비용이 포함된 총 비용입니다.
 
-| 요금 옵션 | 서버 매칭 r6i | 서버 매칭 r7i | SGA 최적화 r6i | SGA 최적화 r7i |
+| 요금 옵션 | 서버 매칭 {family_a} | 서버 매칭 {family_b} | SGA 최적화 {family_a} | SGA 최적화 {family_b} |
 |-----------|-------------|-------------|--------------|--------------|
-| | {spec_r6i_instance} | {spec_r7i_instance} | {sga_r6i_instance} | {sga_r7i_instance} |
-| **On-Demand** | ${comp_spec_r6i_od} | ${comp_spec_r7i_od} | ${comp_sga_r6i_od} | ${comp_sga_r7i_od} |
-| **1년 RI (All Upfront)** | ${comp_spec_r6i_ri1au} | ${comp_spec_r7i_ri1au} | ${comp_sga_r6i_ri1au} | ${comp_sga_r7i_ri1au} |
-| **3년 RI (All Upfront)** | ${comp_spec_r6i_ri3au} | ${comp_spec_r7i_ri3au} | ${comp_sga_r6i_ri3au} | ${comp_sga_r7i_ri3au} |
+| | {spec_family_a_instance} | {spec_family_b_instance} | {sga_family_a_instance} | {sga_family_b_instance} |
+| **On-Demand** | ${comp_spec_family_a_od} | ${comp_spec_family_b_od} | ${comp_sga_family_a_od} | ${comp_sga_family_b_od} |
+| **1년 RI (All Upfront)** | ${comp_spec_family_a_ri1au} | ${comp_spec_family_b_ri1au} | ${comp_sga_family_a_ri1au} | ${comp_sga_family_b_ri1au} |
+| **3년 RI (All Upfront)** | ${comp_spec_family_a_ri3au} | ${comp_spec_family_b_ri3au} | ${comp_sga_family_a_ri3au} | ${comp_sga_family_b_ri3au} |
 
 ### 3년 TCO 비교 (스토리지 증가분 반영)
 
 > 스토리지 비용은 연도별 증가분({yearly_growth_rate}%/년)이 반영된 누적 합계입니다.
 
-| 시나리오 | 서버 매칭 r6i | 서버 매칭 r7i | SGA 최적화 r6i | SGA 최적화 r7i |
+| 시나리오 | 서버 매칭 {family_a} | 서버 매칭 {family_b} | SGA 최적화 {family_a} | SGA 최적화 {family_b} |
 |---------|-------------|-------------|--------------|--------------|
-| On-Demand 3년 | ${tco_spec_r6i_od} | ${tco_spec_r7i_od} | ${tco_sga_r6i_od} | ${tco_sga_r7i_od} |
-| 1년 RI × 3회 | ${tco_spec_r6i_ri1} | ${tco_spec_r7i_ri1} | ${tco_sga_r6i_ri1} | ${tco_sga_r7i_ri1} |
-| 3년 RI 1회 | ${tco_spec_r6i_ri3} | ${tco_spec_r7i_ri3} | ${tco_sga_r6i_ri3} | ${tco_sga_r7i_ri3} |
+| On-Demand 3년 | ${tco_spec_family_a_od} | ${tco_spec_family_b_od} | ${tco_sga_family_a_od} | ${tco_sga_family_b_od} |
+| 1년 RI × 3회 | ${tco_spec_family_a_ri1} | ${tco_spec_family_b_ri1} | ${tco_sga_family_a_ri1} | ${tco_sga_family_b_ri1} |
+| 3년 RI 1회 | ${tco_spec_family_a_ri3} | ${tco_spec_family_b_ri3} | ${tco_sga_family_a_ri3} | ${tco_sga_family_b_ri3} |
 
 #### 3년 TCO 비용 구성 상세 (최적 시나리오: SGA 최적화 + 3년 RI)
 
 | 비용 항목 | 1년차 | 2년차 | 3년차 | 3년 합계 |
 |----------|-------|-------|-------|---------|
-| 인스턴스 비용 (r6i) | ${tco_detail_r6i_inst_1y} | ${tco_detail_r6i_inst_2y} | ${tco_detail_r6i_inst_3y} | ${tco_detail_r6i_inst_total} |
+| 인스턴스 비용 ({family_a}) | ${tco_detail_family_a_inst_1y} | ${tco_detail_family_a_inst_2y} | ${tco_detail_family_a_inst_3y} | ${tco_detail_family_a_inst_total} |
 | 스토리지 비용 | ${tco_detail_stor_1y} | ${tco_detail_stor_2y} | ${tco_detail_stor_3y} | ${tco_detail_stor_total} |
 | 네트워크 비용 | ${tco_detail_net_1y} | ${tco_detail_net_2y} | ${tco_detail_net_3y} | ${tco_detail_net_total} |
-| **연도별 합계 (r6i)** | **${tco_detail_r6i_1y}** | **${tco_detail_r6i_2y}** | **${tco_detail_r6i_3y}** | **${tco_detail_r6i_total}** |
-| 인스턴스 비용 (r7i) | ${tco_detail_r7i_inst_1y} | ${tco_detail_r7i_inst_2y} | ${tco_detail_r7i_inst_3y} | ${tco_detail_r7i_inst_total} |
+| **연도별 합계 ({family_a})** | **${tco_detail_family_a_1y}** | **${tco_detail_family_a_2y}** | **${tco_detail_family_a_3y}** | **${tco_detail_family_a_total}** |
+| 인스턴스 비용 ({family_b}) | ${tco_detail_family_b_inst_1y} | ${tco_detail_family_b_inst_2y} | ${tco_detail_family_b_inst_3y} | ${tco_detail_family_b_inst_total} |
 | 스토리지 비용 | ${tco_detail_stor_1y} | ${tco_detail_stor_2y} | ${tco_detail_stor_3y} | ${tco_detail_stor_total} |
 | 네트워크 비용 | ${tco_detail_net_1y} | ${tco_detail_net_2y} | ${tco_detail_net_3y} | ${tco_detail_net_total} |
-| **연도별 합계 (r7i)** | **${tco_detail_r7i_1y}** | **${tco_detail_r7i_2y}** | **${tco_detail_r7i_3y}** | **${tco_detail_r7i_total}** |
+| **연도별 합계 ({family_b})** | **${tco_detail_family_b_1y}** | **${tco_detail_family_b_2y}** | **${tco_detail_family_b_3y}** | **${tco_detail_family_b_total}** |
 
 ---
 
-## 8. 권장사항
+## 8. 이관 전략별 비용 비교 (Oracle → RDS for Oracle vs Aurora PostgreSQL)
+
+> 동일 인스턴스 사이즈에서 RDS for Oracle(Replatform)과 Aurora PostgreSQL(Refactoring)의
+> 비용을 비교합니다. SGA 최적화 기준 인스턴스를 사용합니다.
+
+### {family_a} 계열 ({sga_family_a_instance}) — Single-AZ
+
+| 요금 옵션 | RDS for Oracle (연간) | Aurora PostgreSQL (연간) | 절감액 | 절감률 |
+|-----------|---------------------|------------------------|--------|--------|
+| **On-Demand** | ${comp_sga_family_a_od} | ${refac_family_a_od_total_yearly} | ${refac_family_a_od_savings} | {refac_family_a_od_savings_rate}% |
+| **1년 RI (No Upfront)** | ${comp_sga_family_a_ri1nu} | ${refac_family_a_ri1nu_total_yearly} | ${refac_family_a_ri1nu_savings} | {refac_family_a_ri1nu_savings_rate}% |
+| **1년 RI (All Upfront)** | ${comp_sga_family_a_ri1au} | ${refac_family_a_ri1au_total_yearly} | ${refac_family_a_ri1au_savings} | {refac_family_a_ri1au_savings_rate}% |
+| **3년 RI (No Upfront)** | ${comp_sga_family_a_ri3nu} | ${refac_family_a_ri3nu_total_yearly} | ${refac_family_a_ri3nu_savings} | {refac_family_a_ri3nu_savings_rate}% |
+| **3년 RI (All Upfront)** | ${comp_sga_family_a_ri3au} | ${refac_family_a_ri3au_total_yearly} | ${refac_family_a_ri3au_savings} | {refac_family_a_ri3au_savings_rate}% |
+
+### {family_b} 계열 ({sga_family_b_instance}) — Single-AZ
+
+| 요금 옵션 | RDS for Oracle (연간) | Aurora PostgreSQL (연간) | 절감액 | 절감률 |
+|-----------|---------------------|------------------------|--------|--------|
+| **On-Demand** | ${comp_sga_family_b_od} | ${refac_family_b_od_total_yearly} | ${refac_family_b_od_savings} | {refac_family_b_od_savings_rate}% |
+| **1년 RI (No Upfront)** | ${comp_sga_family_b_ri1nu} | ${refac_family_b_ri1nu_total_yearly} | ${refac_family_b_ri1nu_savings} | {refac_family_b_ri1nu_savings_rate}% |
+| **1년 RI (All Upfront)** | ${comp_sga_family_b_ri1au} | ${refac_family_b_ri1au_total_yearly} | ${refac_family_b_ri1au_savings} | {refac_family_b_ri1au_savings_rate}% |
+| **3년 RI (No Upfront)** | ${comp_sga_family_b_ri3nu} | ${refac_family_b_ri3nu_total_yearly} | ${refac_family_b_ri3nu_savings} | {refac_family_b_ri3nu_savings_rate}% |
+| **3년 RI (All Upfront)** | ${comp_sga_family_b_ri3au} | ${refac_family_b_ri3au_total_yearly} | ${refac_family_b_ri3au_savings} | {refac_family_b_ri3au_savings_rate}% |
+
+> 💡 Aurora PostgreSQL은 Oracle 대비 라이선스 비용이 없어 인스턴스 비용이 크게 절감됩니다.
+> 단, PL/SQL → PL/pgSQL 변환 등 애플리케이션 코드 수정 비용은 별도 고려가 필요합니다.
+
+---
+
+## 9. 권장사항
 
 ### 비용 최적화 전략
 
 1. **SGA 기반 인스턴스로 시작**: 실제 메모리 사용량 기준 최적화 사이즈로 시작하여 불필요한 비용 방지
-2. **r7i 우선 검토**: 동일 사이즈에서 15~20% 향상된 성능 제공, 가격 대비 성능비(price-performance) 우위
+2. **최신 세대 우선 검토**: 동일 사이즈에서 세대가 높을수록 성능 대비 비용 효율이 좋습니다
 3. **부하 테스트 후 사이즈 확정**: POC 기간 동안 On-Demand로 운영하며 적정 사이즈 검증
 4. **RI 전환 시점**: 프로덕션 안정화 후 3년 RI(All Upfront) 전환으로 최대 비용 절감
 5. **스토리지 모니터링**: 연간 증가율({yearly_growth_rate}%)을 주기적으로 검증하고, 예상보다 빠른 증가 시 용량 계획 조정
@@ -301,7 +330,7 @@
 
 | 단계 | 기간 | 요금 모델 | 인스턴스 | 비고 |
 |------|------|----------|---------|------|
-| POC/테스트 | 1-2개월 | On-Demand | {sga_r7i_instance} | SGA 기반 r7i로 시작 |
+| POC/테스트 | 1-2개월 | On-Demand | {sga_family_b_instance} | SGA 기반 최신 세대로 시작 |
 | 프로덕션 안정화 | 2-3개월 | On-Demand | 부하 테스트 결과 반영 | 필요 시 스케일 업 |
 | 비용 최적화 | 안정화 후 | 3년 RI (All Upfront) | 확정된 인스턴스 | 최대 절감 |
 
@@ -315,37 +344,7 @@
 
 ---
 
-## 부록 A: r6i 인스턴스 패밀리
-
-| 인스턴스 타입 | vCPU | 메모리 (GB) | 네트워크 (Gbps) |
-|-------------|------|------------|----------------|
-| db.r6i.large | 2 | 16 | 12.5 |
-| db.r6i.xlarge | 4 | 32 | 12.5 |
-| db.r6i.2xlarge | 8 | 64 | 12.5 |
-| db.r6i.4xlarge | 16 | 128 | 12.5 |
-| db.r6i.8xlarge | 32 | 256 | 12.5 |
-| db.r6i.12xlarge | 48 | 384 | 18.75 |
-| db.r6i.16xlarge | 64 | 512 | 25.0 |
-| db.r6i.24xlarge | 96 | 768 | 37.5 |
-
-> **r6i**: 3세대 Intel Xeon (Ice Lake) 기반 메모리 최적화 인스턴스.
-
-## 부록 B: r7i 인스턴스 패밀리
-
-| 인스턴스 타입 | vCPU | 메모리 (GB) | 네트워크 (Gbps) |
-|-------------|------|------------|----------------|
-| db.r7i.large | 2 | 16 | 12.5 |
-| db.r7i.xlarge | 4 | 32 | 12.5 |
-| db.r7i.2xlarge | 8 | 64 | 12.5 |
-| db.r7i.4xlarge | 16 | 128 | 12.5 |
-| db.r7i.8xlarge | 32 | 256 | 12.5 |
-| db.r7i.12xlarge | 48 | 384 | 18.75 |
-| db.r7i.16xlarge | 64 | 512 | 25.0 |
-| db.r7i.24xlarge | 96 | 768 | 37.5 |
-
-> **r7i**: 4세대 Intel Xeon (Sapphire Rapids) 기반. r6i 대비 약 15~20% 성능 향상.
-
-## 부록 C: gp3 스토리지 요금 기준
+## 부록 A: gp3 스토리지 요금 기준
 
 | 항목 | 요금 ({aws_region}) |
 |------|---------------------|
@@ -354,7 +353,7 @@
 | 추가 처리량 (125 MB/s 초과) | $0.04/MB/s-월 |
 | 백업 스토리지 (보관 기간 초과분) | $0.095/GB-월 |
 
-## 부록 D: 네트워크 전송 요금 기준
+## 부록 B: 네트워크 전송 요금 기준
 
 | 트래픽 경로 | 요금 ({aws_region}) |
 |------------|---------------------|
@@ -366,7 +365,7 @@
 | 인터넷 Outbound (10-50TB) | $0.085/GB |
 | 인터넷 Inbound | 무료 |
 
-## 부록 E: 비용 산정 공식
+## 부록 C: 비용 산정 공식
 
 ```
 월 인스턴스 비용 = 시간당 요금 × 730시간

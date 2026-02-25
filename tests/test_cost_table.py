@@ -11,6 +11,8 @@ CostTable 클래스 단위 테스트.
 
 from __future__ import annotations
 
+import warnings
+
 import pytest
 
 from rds_cost_estimator.cost_table import CostTable
@@ -62,7 +64,7 @@ def make_ri_1yr_record(
     """1년 RI CostRecord 생성 헬퍼."""
     return CostRecord(
         spec=make_spec(instance_type, strategy),
-        pricing_type=PricingType.RI_1YR,
+        pricing_type=PricingType.RI_1YR_ALL_UPFRONT,
         upfront_fee=upfront_fee,
         monthly_fee=monthly_fee,
         is_available=is_available,
@@ -79,7 +81,7 @@ def make_ri_3yr_record(
     """3년 RI CostRecord 생성 헬퍼."""
     return CostRecord(
         spec=make_spec(instance_type, strategy),
-        pricing_type=PricingType.RI_3YR,
+        pricing_type=PricingType.RI_3YR_ALL_UPFRONT,
         upfront_fee=upfront_fee,
         monthly_fee=monthly_fee,
         is_available=is_available,
@@ -88,6 +90,7 @@ def make_ri_3yr_record(
 
 # ─── compute_savings 테스트 ──────────────────────────────────────────────────────
 
+@pytest.mark.filterwarnings("ignore::DeprecationWarning")
 class TestComputeSavings:
     """compute_savings 메서드 테스트."""
 
@@ -276,6 +279,7 @@ class TestComputeSavings:
 
 # ─── to_dict 테스트 ──────────────────────────────────────────────────────────────
 
+@pytest.mark.filterwarnings("ignore::DeprecationWarning")
 class TestToDict:
     """to_dict 메서드 테스트."""
 
@@ -347,3 +351,22 @@ class TestToDict:
         result = table.to_dict()
 
         assert result[0]["on_prem_annual_cost"] == on_prem
+
+
+# ─── CostTable deprecation 경고 테스트 ───────────────────────────────────────────
+
+class TestCostTableDeprecation:
+    """CostTable 생성 시 DeprecationWarning이 발생하는지 확인."""
+
+    def test_cost_table_emits_deprecation_warning(self) -> None:
+        """CostTable 인스턴스 생성 시 DeprecationWarning이 발생하는지 확인."""
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            CostTable(records=[], on_prem_annual_cost=50000.0)
+
+            # DeprecationWarning이 1개 이상 발생해야 함
+            deprecation_warnings = [
+                x for x in w if issubclass(x.category, DeprecationWarning)
+            ]
+            assert len(deprecation_warnings) >= 1
+            assert "v1 전용" in str(deprecation_warnings[0].message)

@@ -57,16 +57,16 @@ class TestCacheKey:
         expected = "db.r6i.xlarge:ap-northeast-2:oracle-ee:Single-AZ:on_demand"
         assert key == expected
 
-    def test_cache_key_ri_1yr(self, pricing_client: PricingClient, sample_spec: InstanceSpec) -> None:
-        """1년 RI 캐시 키 형식 확인."""
-        key = pricing_client._cache_key(sample_spec, PricingType.RI_1YR)
-        expected = "db.r6i.xlarge:ap-northeast-2:oracle-ee:Single-AZ:1yr_partial_upfront"
+    def test_cache_key_ri_1yr_all_upfront(self, pricing_client: PricingClient, sample_spec: InstanceSpec) -> None:
+        """1년 RI All Upfront 캐시 키 형식 확인."""
+        key = pricing_client._cache_key(sample_spec, PricingType.RI_1YR_ALL_UPFRONT)
+        expected = "db.r6i.xlarge:ap-northeast-2:oracle-ee:Single-AZ:1yr_all_upfront"
         assert key == expected
 
-    def test_cache_key_ri_3yr(self, pricing_client: PricingClient, sample_spec: InstanceSpec) -> None:
-        """3년 RI 캐시 키 형식 확인."""
-        key = pricing_client._cache_key(sample_spec, PricingType.RI_3YR)
-        expected = "db.r6i.xlarge:ap-northeast-2:oracle-ee:Single-AZ:3yr_partial_upfront"
+    def test_cache_key_ri_3yr_all_upfront(self, pricing_client: PricingClient, sample_spec: InstanceSpec) -> None:
+        """3년 RI All Upfront 캐시 키 형식 확인."""
+        key = pricing_client._cache_key(sample_spec, PricingType.RI_3YR_ALL_UPFRONT)
+        expected = "db.r6i.xlarge:ap-northeast-2:oracle-ee:Single-AZ:3yr_all_upfront"
         assert key == expected
 
     def test_cache_key_different_specs_are_unique(
@@ -272,3 +272,103 @@ class TestRegionNamesMapping:
     def test_virginia_region_mapping(self) -> None:
         """버지니아 리전 매핑 확인."""
         assert REGION_NAMES["us-east-1"] == "US East (N. Virginia)"
+
+
+class TestPartialCacheHit:
+    """부분 캐시 히트 테스트 (요구사항 2)."""
+
+    @pytest.fixture
+    def spec(self) -> InstanceSpec:
+        return InstanceSpec(
+            instance_type="db.r6i.2xlarge",
+            region="ap-northeast-2",
+            engine="oracle-ee",
+            strategy=MigrationStrategy.REPLATFORM,
+            deployment_option="Single-AZ",
+        )
+
+    def _make_cached_record(self, spec, pt):
+        """캐시용 CostRecord를 생성합니다."""
+        from rds_cost_estimator.models import CostRecord
+        return CostRecord(
+            spec=spec,
+            pricing_type=pt,
+            is_available=True,
+            monthly_fee=100.0,
+            monthly_cost=100.0,
+            annual_cost=1200.0,
+        )
+
+    @pytest.mark.asyncio
+    async def test_full_cache_hit_returns_all_cached(self, session, spec):
+        """전체 캐시 히트 시 API 호출 없이 캐시된 레코드를 반환합니다."""
+        cache = {}
+        client = PricingClient(session, cache=cache)
+
+        all_types = [
+            PricingType.ON_DEMAND,
+            PricingType.RI_1YR_ALL_UPFRONT,
+            PricingType.RI_3YR_ALL_UPFRONT,
+        ]
+        # 모든 타입을 캐시에 미리 넣기
+        for pt in all_types:
+            ck = client._cache_key(spec, pt)
+            cache[ck] = self._make_cached_record(spec, pt)
+
+        records = await client.fetch_all(spec)
+        assert len(records) == 3
+        # 모든 레코드가 캐시에서 온 것 확인
+        for rec in records:
+            assert rec.is_available is True
+            assert rec.monthly_cost == 100.0
+
+    @pytest.mark.asyncio
+    async def test_partial_cache_preserves_cached_on_api_failure(self, session, spec):
+        """부분 캐시 상태에서 API 실패 시 캐시된 레코드는 유지됩니다."""
+        from unittest.mock import patch, MagicMock
+        from rds_cost_estimator.models import CostRecord
+
+        cache = {}
+        client = PricingClient(session, cache=cache)
+
+        # On-Demand만 캐시에 넣기
+        cached_types = [PricingType.ON_DEMAND]
+        for pt in cached_types:
+            ck = client._cache_key(spec, pt)
+            cache[ck] = self._make_cached_record(spec, pt)
+
+        # API 호출이 실패하도록 모킹
+        with patch.object(client, "_client") as mock_client:
+            mock_client.get_products.side_effect = Exception("API 오류")
+            records = await client.fetch_all(spec)
+
+        assert len(records) == 3
+        # 캐시된 1개는 available
+        available = [r for r in records if r.is_available]
+        unavailable = [r for r in records if not r.is_available]
+        assert len(available) == 1
+        assert len(unavailable) == 2
+
+    @pytest.mark.asyncio
+    async def test_partial_cache_does_not_duplicate(self, session, spec):
+        """부분 캐시 히트 시 캐시된 레코드가 중복되지 않습니다."""
+        from unittest.mock import patch, MagicMock
+        import json
+
+        cache = {}
+        client = PricingClient(session, cache=cache)
+
+        # RI_3YR_ALL_UPFRONT만 캐시에 넣기
+        ck = client._cache_key(spec, PricingType.RI_3YR_ALL_UPFRONT)
+        cache[ck] = self._make_cached_record(spec, PricingType.RI_3YR_ALL_UPFRONT)
+
+        # API 호출이 실패하도록 모킹
+        with patch.object(client, "_client") as mock_client:
+            mock_client.get_products.side_effect = Exception("API 오류")
+            records = await client.fetch_all(spec)
+
+        # 총 3개 레코드, RI_3YR_ALL_UPFRONT는 1개만
+        assert len(records) == 3
+        ri3au_records = [r for r in records if r.pricing_type == PricingType.RI_3YR_ALL_UPFRONT]
+        assert len(ri3au_records) == 1
+        assert ri3au_records[0].is_available is True

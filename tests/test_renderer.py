@@ -27,6 +27,8 @@ from rds_cost_estimator.models import (
 )
 from rds_cost_estimator.renderer import ReportRenderer
 
+import warnings
+
 
 # ─── 공통 헬퍼 함수 ──────────────────────────────────────────────────────────────
 
@@ -68,7 +70,7 @@ def make_ri_1yr_record(
     """1년 RI CostRecord 생성 헬퍼."""
     return CostRecord(
         spec=make_spec(instance_type, strategy),
-        pricing_type=PricingType.RI_1YR,
+        pricing_type=PricingType.RI_1YR_ALL_UPFRONT,
         upfront_fee=upfront_fee,
         monthly_fee=monthly_fee,
         is_available=is_available,
@@ -85,7 +87,7 @@ def make_ri_3yr_record(
     """3년 RI CostRecord 생성 헬퍼."""
     return CostRecord(
         spec=make_spec(instance_type, strategy),
-        pricing_type=PricingType.RI_3YR,
+        pricing_type=PricingType.RI_3YR_ALL_UPFRONT,
         upfront_fee=upfront_fee,
         monthly_fee=monthly_fee,
         is_available=is_available,
@@ -152,6 +154,7 @@ def capture_console_output(table: CostTable) -> str:
 
 # ─── render_console 테스트 ───────────────────────────────────────────────────────
 
+@pytest.mark.filterwarnings("ignore::DeprecationWarning")
 class TestRenderConsole:
     """render_console 메서드 테스트."""
 
@@ -246,6 +249,7 @@ class TestRenderConsole:
 
 # ─── render_json 테스트 ──────────────────────────────────────────────────────────
 
+@pytest.mark.filterwarnings("ignore::DeprecationWarning")
 class TestRenderJson:
     """render_json 메서드 테스트."""
 
@@ -364,3 +368,169 @@ class TestRenderJson:
         # strategy가 문자열로 저장되어야 함
         assert isinstance(data[0]["strategy"], str)
         assert data[0]["strategy"] == "replatform"
+
+
+# ─── render_markdown_v2 템플릿 치환 안전성 테스트 ─────────────────────────────────
+
+from rds_cost_estimator.renderer import _replace_family_in_placeholders
+
+
+class TestReplaceFamilyInPlaceholders:
+    """_replace_family_in_placeholders 함수의 치환 안전성 테스트."""
+
+    def test_placeholder_family_a_is_replaced(self) -> None:
+        """중괄호 내부의 family_a가 실제 패밀리명으로 치환되는지 확인."""
+        template = "인스턴스: {spec_family_a_instance}"
+        result = _replace_family_in_placeholders(template, "r6i", None)
+        assert result == "인스턴스: {spec_r6i_instance}"
+
+    def test_placeholder_family_b_is_replaced(self) -> None:
+        """중괄호 내부의 family_b가 실제 패밀리명으로 치환되는지 확인."""
+        template = "인스턴스: {spec_family_b_instance}"
+        result = _replace_family_in_placeholders(template, "r6i", "r7i")
+        assert result == "인스턴스: {spec_r7i_instance}"
+
+    def test_plain_text_family_a_not_replaced(self) -> None:
+        """중괄호 밖의 일반 텍스트 'family_a'는 치환되지 않아야 합니다."""
+        template = "family_a 계열은 {family_a} 패밀리입니다."
+        result = _replace_family_in_placeholders(template, "r6i", None)
+        # 중괄호 밖의 "family_a"는 그대로, 단독 {family_a}도 2단계 처리를 위해 보존
+        assert result == "family_a 계열은 {family_a} 패밀리입니다."
+
+    def test_plain_text_family_b_not_replaced(self) -> None:
+        """중괄호 밖의 일반 텍스트 'family_b'는 치환되지 않아야 합니다."""
+        template = "family_b 계열은 {family_b} 패밀리입니다."
+        result = _replace_family_in_placeholders(template, "r6i", "r7i")
+        # 단독 {family_b}도 2단계 처리를 위해 보존
+        assert result == "family_b 계열은 {family_b} 패밀리입니다."
+
+    def test_dollar_placeholder_family_a_is_replaced(self) -> None:
+        """${...} 패턴 내부의 family_a도 치환되는지 확인."""
+        template = "비용: ${spec_family_a_od_monthly}"
+        result = _replace_family_in_placeholders(template, "r6i", None)
+        assert result == "비용: ${spec_r6i_od_monthly}"
+
+    def test_mixed_content_preserves_plain_text(self) -> None:
+        """플레이스홀더와 일반 텍스트가 혼재된 경우 올바르게 처리되는지 확인."""
+        template = (
+            "| family_a | family_b |\n"
+            "| {spec_family_a_instance} | {spec_family_b_instance} |\n"
+            "family_a 설명 텍스트"
+        )
+        result = _replace_family_in_placeholders(template, "r6i", "r7i")
+        # 일반 텍스트의 family_a/family_b는 보존
+        assert "| family_a | family_b |" in result
+        assert "family_a 설명 텍스트" in result
+        # 플레이스홀더 내부는 치환
+        assert "{spec_r6i_instance}" in result
+        assert "{spec_r7i_instance}" in result
+
+    def test_family_b_none_skips_replacement(self) -> None:
+        """family_b가 None이면 family_b 치환을 건너뛰는지 확인."""
+        template = "{spec_family_b_instance}"
+        result = _replace_family_in_placeholders(template, "r6i", None)
+        # family_b가 None이므로 치환하지 않음
+        assert result == "{spec_family_b_instance}"
+
+    def test_no_placeholders_returns_unchanged(self) -> None:
+        """플레이스홀더가 없는 템플릿은 변경 없이 반환되는지 확인."""
+        template = "family_a와 family_b는 일반 텍스트입니다."
+        result = _replace_family_in_placeholders(template, "r6i", "r7i")
+        assert result == template
+
+
+class TestRenderMarkdownV2Substitution:
+    """render_markdown_v2의 전체 치환 파이프라인 안전성 테스트."""
+
+    def test_plain_text_family_a_preserved_in_output(self, tmp_path: Path) -> None:
+        """render_markdown_v2에서 일반 텍스트 'family_a'가 치환되지 않는지 확인."""
+        # 테스트용 템플릿 생성
+        template_content = (
+            "# 리포트\n"
+            "family_a 계열 설명입니다.\n"
+            "| {family_a} | {family_b} |\n"
+            "| ${spec_family_a_od_monthly} | ${spec_family_b_od_monthly} |\n"
+        )
+        template_path = str(tmp_path / "template.md")
+        with open(template_path, "w", encoding="utf-8") as f:
+            f.write(template_content)
+
+        output_path = str(tmp_path / "output.md")
+        template_data = {
+            "family_a": "r6i",
+            "family_b": "r7i",
+            "spec_r6i_od_monthly": "1,234.56",
+            "spec_r7i_od_monthly": "2,345.67",
+        }
+
+        ReportRenderer.render_markdown_v2(
+            template_data=template_data,
+            output_path=output_path,
+            template_path=template_path,
+        )
+
+        with open(output_path, encoding="utf-8") as f:
+            result = f.read()
+
+        # 일반 텍스트의 "family_a"는 보존
+        assert "family_a 계열 설명입니다." in result
+        # 플레이스홀더는 치환됨
+        assert "| r6i | r7i |" in result
+        assert "1,234.56" in result
+        assert "2,345.67" in result
+
+
+# ─── v1 렌더러 deprecation 경고 테스트 ────────────────────────────────────────────
+
+class TestV1RendererDeprecation:
+    """v1 전용 렌더러 메서드 호출 시 DeprecationWarning이 발생하는지 확인."""
+
+    def test_render_console_emits_deprecation_warning(self) -> None:
+        """render_console 호출 시 DeprecationWarning이 발생하는지 확인."""
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            table = CostTable(records=[], on_prem_annual_cost=50000.0)
+            ReportRenderer.render_console(table)
+
+            # render_console에서 발생한 DeprecationWarning 확인
+            console_warnings = [
+                x for x in w
+                if issubclass(x.category, DeprecationWarning)
+                and "render_console" in str(x.message)
+            ]
+            assert len(console_warnings) >= 1
+            assert "v1 전용" in str(console_warnings[0].message)
+
+    def test_render_json_emits_deprecation_warning(self, tmp_path: Path) -> None:
+        """render_json 호출 시 DeprecationWarning이 발생하는지 확인."""
+        output_path = str(tmp_path / "output.json")
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            table = CostTable(records=[], on_prem_annual_cost=50000.0)
+            ReportRenderer.render_json(table, output_path)
+
+            # render_json에서 발생한 DeprecationWarning 확인
+            json_warnings = [
+                x for x in w
+                if issubclass(x.category, DeprecationWarning)
+                and "render_json" in str(x.message)
+            ]
+            assert len(json_warnings) >= 1
+            assert "v1 전용" in str(json_warnings[0].message)
+
+    def test_render_markdown_emits_deprecation_warning(self, tmp_path: Path) -> None:
+        """render_markdown 호출 시 DeprecationWarning이 발생하는지 확인."""
+        output_path = str(tmp_path / "output.md")
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            table = CostTable(records=[], on_prem_annual_cost=50000.0)
+            ReportRenderer.render_markdown(table, output_path)
+
+            # render_markdown에서 발생한 DeprecationWarning 확인
+            md_warnings = [
+                x for x in w
+                if issubclass(x.category, DeprecationWarning)
+                and "render_markdown" in str(x.message)
+            ]
+            assert len(md_warnings) >= 1
+            assert "v1 전용" in str(md_warnings[0].message)
