@@ -301,47 +301,43 @@ class DocumentParser:
     def _supplement_awr_network_data(
         self, file_path: str, parsed: ParsedDocumentInfo
     ) -> None:
-        """AWR .out 파일에서 네트워크/Redo 데이터를 직접 파싱하여 보완합니다.
+        """AWR .out 파일에서 네트워크/Redo 데이터를 직접 파싱합니다.
 
-        Bedrock이 AWR .out 파일의 넓은 테이블에서 네트워크 컬럼을 정확히
-        추출하지 못하는 경우를 대비하여, 직접 파싱합니다.
-        이미 Bedrock이 값을 추출한 경우에는 덮어쓰지 않습니다.
+        Bedrock(AI)은 AWR .out 파일의 넓은 테이블에서 네트워크 컬럼을
+        정확히 추출하지 못하는 경우가 많으므로, 직접 파싱 결과를 우선 사용합니다.
+        직접 파싱에 성공하면 Bedrock 결과를 덮어씁니다.
 
         파싱 대상:
         - SYSSTAT 섹션: network_incoming_mb, network_outgoing_mb
         - MAIN-METRICS 섹션: redo_mb_s, dur_m (스냅샷 기간)
         """
-        # Bedrock이 이미 네트워크 데이터를 추출한 경우 스킵
-        awr = parsed.awr_metrics
-        if (awr.sqlnet_bytes_sent_per_day is not None
-                and awr.sqlnet_bytes_received_per_day is not None
-                and awr.redo_bytes_per_day is not None):
-            return
-
         # AWR .out 파일 찾기
         out_files = self._find_awr_out_files(file_path)
         if not out_files:
-            logger.debug("AWR .out 파일 없음, 네트워크 데이터 보완 스킵")
+            logger.debug("AWR .out 파일 없음, 네트워크 데이터 직접 파싱 스킵")
             return
 
+        awr = parsed.awr_metrics
+
         for out_file in out_files:
-            logger.info("AWR .out 파일 직접 파싱: %s", out_file)
+            logger.info("AWR .out 파일 직접 파싱 (AI 대신 우선 사용): %s", out_file)
             net_data = self._parse_awr_out_network(out_file)
             if not net_data:
                 continue
 
-            # Bedrock이 추출하지 못한 필드만 보완
-            if awr.sqlnet_bytes_sent_per_day is None and net_data.get("sent_bytes_per_day"):
+            # 직접 파싱 결과로 덮어쓰기 (Bedrock 결과보다 정확)
+            if net_data.get("sent_bytes_per_day") is not None:
                 awr.sqlnet_bytes_sent_per_day = net_data["sent_bytes_per_day"]
-                logger.info("네트워크 송신 보완: %.0f bytes/일", awr.sqlnet_bytes_sent_per_day)
+                logger.info("네트워크 송신 (직접 파싱): %.0f bytes/일", awr.sqlnet_bytes_sent_per_day)
 
-            if awr.sqlnet_bytes_received_per_day is None and net_data.get("recv_bytes_per_day"):
+            if net_data.get("recv_bytes_per_day") is not None:
                 awr.sqlnet_bytes_received_per_day = net_data["recv_bytes_per_day"]
-                logger.info("네트워크 수신 보완: %.0f bytes/일", awr.sqlnet_bytes_received_per_day)
+                logger.info("네트워크 수신 (직접 파싱): %.0f bytes/일", awr.sqlnet_bytes_received_per_day)
 
-            if awr.redo_bytes_per_day is None and net_data.get("redo_bytes_per_day"):
+            if net_data.get("redo_bytes_per_day") is not None:
                 awr.redo_bytes_per_day = net_data["redo_bytes_per_day"]
-                logger.info("Redo 생성량 보완: %.0f bytes/일", awr.redo_bytes_per_day)
+                logger.info("Redo 생성량 (직접 파싱): %.0f bytes/일", awr.redo_bytes_per_day)
+
 
     def _find_awr_out_files(self, file_path: str) -> list[str]:
         """AWR .out 파일을 찾습니다."""
@@ -565,6 +561,11 @@ class DocumentParser:
         "rds mysql": "mysql",
         "rds for sql server": "sqlserver-ee",
         "rds sql server": "sqlserver-ee",
+        # Oracle SE2 (LI)를 먼저 매칭해야 "rds for oracle"보다 우선 적용됨
+        "rds for oracle se2": "oracle-se2",
+        "oracle se2": "oracle-se2",
+        "rds for oracle ee": "oracle-ee",
+        "oracle ee": "oracle-ee",
         "rds for oracle": "oracle-ee",
     }
 

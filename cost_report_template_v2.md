@@ -145,6 +145,8 @@
 | + Read Replica (Cross-AZ) | ${net_cost_rr_cross_az} | ${net_cost_rr_cross_az_yearly} |
 | + Read Replica (Cross-Region) | ${net_cost_rr_cross_region} | ${net_cost_rr_cross_region_yearly} |
 
+{read_replica_note}
+
 > 💡 App과 RDS를 같은 AZ에 배치하면 네트워크 비용을 제거할 수 있습니다. 단, 단일 AZ 장애 시 영향도를 고려해야 합니다.
 
 ### 연도별 네트워크 비용 예측 (Cross-AZ 기준, 증가율 {yearly_growth_rate}%/년)

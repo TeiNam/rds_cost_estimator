@@ -142,7 +142,7 @@ _NETWORK_YEARLY_KEY_PATTERNS: list[str] = [
 
 def get_all_network_keys() -> list[str]:
     """_fill_network_costs에서 설정하는 모든 네트워크 키 목록을 반환합니다."""
-    keys = list(_NETWORK_STATIC_KEYS) + ["net_scenario"]
+    keys = list(_NETWORK_STATIC_KEYS) + ["net_scenario", "read_replica_note"]
     for yr in range(1, 4):
         for pattern in _NETWORK_YEARLY_KEY_PATTERNS:
             keys.append(pattern.format(yr=yr))

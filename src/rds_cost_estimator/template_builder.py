@@ -228,7 +228,11 @@ class TemplateBuilder:
                 data[f"stor_maz_total{suffix}"] = f"{costs['total'] * 2:,.2f}"
 
     def _fill_network_costs(self, data: dict, growth_rate: float) -> None:
-        """DuckDB에서 네트워크 트래픽을 조회하여 비용을 계산합니다."""
+        """DuckDB에서 네트워크 트래픽을 조회하여 비용을 계산합니다.
+
+        Oracle SE2 (LI) 엔진은 Read Replica를 지원하지 않으므로
+        Redo 전송량을 네트워크 비용 집계에서 제외합니다.
+        """
         if not self._db_store:
             self._fill_network_defaults(data)
             return
@@ -239,6 +243,10 @@ class TemplateBuilder:
         rp = get_region_pricing(self._args.region)
         cross_az_rate = rp["cross_az_per_gb"]
         cross_region_rate = rp["cross_region_per_gb"]
+
+        # Oracle SE2 (LI)는 Read Replica 미지원 → Redo 전송 비용 제외
+        engine = self._args.engine
+        can_use_read_replica = engine != "oracle-se2"
 
         # AWR 기반 네트워크 트래픽 (일별/월별)
         sent_daily = net["sent_daily_gb"]
@@ -255,7 +263,11 @@ class TemplateBuilder:
         data["redo_daily"] = f"{redo_daily:,.2f}"
         data["redo_monthly"] = f"{redo_daily * 30:,.2f}"
 
-        total_daily = sent_daily + recv_daily + dblink_daily + redo_daily
+        # 네트워크 총량: Read Replica 불가 시 Redo 제외
+        if can_use_read_replica:
+            total_daily = sent_daily + recv_daily + dblink_daily + redo_daily
+        else:
+            total_daily = sent_daily + recv_daily + dblink_daily
         total_monthly = total_daily * 30
         data["net_total_daily"] = f"{total_daily:,.2f}"
         data["net_total_monthly"] = f"{total_monthly:,.2f}"
@@ -272,21 +284,37 @@ class TemplateBuilder:
         data["net_cost_maz_cross_az"] = f"{cross_az_cost:,.2f}"
         data["net_cost_maz_cross_az_yearly"] = f"{cross_az_cost * 12:,.2f}"
 
-        # + Read Replica (Cross-AZ)
-        redo_monthly = redo_daily * 30
-        rr_cross_az_cost = cross_az_cost + redo_monthly * cross_az_rate
-        data["net_cost_rr_cross_az"] = f"{rr_cross_az_cost:,.2f}"
-        data["net_cost_rr_cross_az_yearly"] = f"{rr_cross_az_cost * 12:,.2f}"
-
-        # + Read Replica (Cross-Region)
-        rr_cross_region_cost = cross_az_cost + redo_monthly * cross_region_rate
-        data["net_cost_rr_cross_region"] = f"{rr_cross_region_cost:,.2f}"
-        data["net_cost_rr_cross_region_yearly"] = f"{rr_cross_region_cost * 12:,.2f}"
+        # + Read Replica 시나리오
+        if can_use_read_replica:
+            redo_monthly = redo_daily * 30
+            # Cross-AZ Read Replica
+            rr_cross_az_cost = cross_az_cost + redo_monthly * cross_az_rate
+            data["net_cost_rr_cross_az"] = f"{rr_cross_az_cost:,.2f}"
+            data["net_cost_rr_cross_az_yearly"] = f"{rr_cross_az_cost * 12:,.2f}"
+            # Cross-Region Read Replica
+            rr_cross_region_cost = cross_az_cost + redo_monthly * cross_region_rate
+            data["net_cost_rr_cross_region"] = f"{rr_cross_region_cost:,.2f}"
+            data["net_cost_rr_cross_region_yearly"] = f"{rr_cross_region_cost * 12:,.2f}"
+        else:
+            # Oracle SE2 (LI): Read Replica 미지원
+            data["net_cost_rr_cross_az"] = "N/A"
+            data["net_cost_rr_cross_az_yearly"] = "N/A"
+            data["net_cost_rr_cross_region"] = "N/A"
+            data["net_cost_rr_cross_region_yearly"] = "N/A"
 
         # 기본 시나리오: Cross-AZ
         data["net_monthly"] = f"{cross_az_cost:,.2f}"
         data["net_maz_monthly"] = f"{cross_az_cost:,.2f}"
         data["net_scenario"] = "Single-AZ (Cross-AZ App)"
+
+        # Read Replica 미지원 안내
+        if not can_use_read_replica:
+            data["read_replica_note"] = (
+                "> ⚠️ RDS for Oracle SE2 (License Included)는 Read Replica를 "
+                "지원하지 않습니다. Redo 전송 비용은 네트워크 비용 집계에서 제외됩니다."
+            )
+        else:
+            data["read_replica_note"] = ""
 
         # 연도별 네트워크 비용 예측 (스토리지 증가율 적용)
         for yr in range(1, 4):
@@ -299,11 +327,13 @@ class TemplateBuilder:
             data[f"net_cost_cross_az_{yr}y"] = f"{yr_cross_az:,.2f}"
             data[f"net_cost_cross_az_yearly_{yr}y"] = f"{yr_cross_az_yearly:,.2f}"
 
+
     def _fill_network_defaults(self, data: dict) -> None:
         """네트워크 데이터가 없을 때 기본값으로 채웁니다."""
         for k in _NETWORK_STATIC_KEYS:
             data[k] = "0.00"
         data["net_scenario"] = "N/A"
+        data["read_replica_note"] = ""
         for yr in range(1, 4):
             for pattern in _NETWORK_YEARLY_KEY_PATTERNS:
                 data[pattern.format(yr=yr)] = "0.00"
