@@ -67,68 +67,62 @@ class BedrockClient:
         return self._parse_response(response_body)
 
     def _build_prompt(self, document_text: str) -> str:
-        """템플릿 v2에 필요한 모든 필드를 추출하는 프롬프트 생성."""
+        """Bedrock 프롬프트 생성 (축소 버전).
+
+        AWR .out 파일의 대부분의 필드는 직접 파싱으로 대체되었으므로,
+        Bedrock에는 DBCSI MD 리포트에서만 추출 가능한 필드를 요청합니다:
+        - 인스턴스 추천 (recommended_instance_by_size, recommended_instance_by_sga)
+        - CPU/s (DBCSI 리포트의 '평균 CPU/s', '최대 CPU/s')
+        - 스토리지 증가 추이 (연간 증가량/증가율)
+        - 프로비저닝 IOPS/처리량
+        """
         prompt = (
-            "다음 문서에서 서버/인스턴스 사양 정보와 AWR 성능 메트릭을 추출하여 "
+            "다음 문서에서 인스턴스 추천 정보와 보조 메트릭을 추출하여 "
             "아래 JSON 형식으로만 응답하세요.\n"
             "찾을 수 없는 필드는 null로 표시하세요.\n\n"
-            "문서에는 두 가지 타입의 권장 인스턴스가 있을 수 있습니다:\n"
-            "1. recommended_instance_by_size: 현재 서버의 CPU/메모리 사양과 비슷한 크기의 RDS 인스턴스\n"
-            "2. recommended_instance_by_sga: Oracle SGA 메모리 기준으로 산정한 RDS 인스턴스\n\n"
+            "주요 추출 대상:\n"
+            "1. recommended_instance_by_size: 현재 서버의 CPU/메모리 사양 기준 권장 RDS 인스턴스\n"
+            "2. recommended_instance_by_sga: Oracle SGA 메모리 기준 권장 RDS 인스턴스\n"
             "인스턴스 유형은 'db.' 접두사를 포함한 전체 이름으로 추출하세요.\n\n"
-            "AWR 메트릭에서 다음 항목을 추출하세요:\n"
-            "- CPU 사용률 % (평균/피크) - os_cpu 또는 퍼센트로 표시된 값\n"
-            "- CPU/s (평균/피크) - 초당 CPU 사용량 절대값 (cpu_per_s). "
-            "DBCSI 리포트에서 '평균 CPU/s', '최대 CPU/s' 형태로 표시됨\n"
-            "- IOPS (평균/피크)\n"
-            "- 메모리 사용량 (평균/피크)\n"
-            "- 네트워크 트래픽 (일별 바이트 단위로 변환하여 응답):\n"
-            "  * AWR .out 파일의 SYSSTAT 섹션에 network_incoming_mb, network_outgoing_mb 컬럼이 있음\n"
-            "    이 값은 스냅샷 기간(dur_m분) 동안의 MB 값임. 일별 바이트로 변환: MB × (1440/dur_m) × 1024 × 1024\n"
-            "    network_outgoing_mb → sqlnet_bytes_sent_per_day, network_incoming_mb → sqlnet_bytes_received_per_day\n"
-            "  * MAIN-METRICS 섹션의 redo_mb_s (초당 MB) → 일별 바이트: redo_mb_s × 86400 × 1024 × 1024\n"
-            "  * 여러 스냅샷이 있으면 평균값을 사용하세요\n"
-            "  * RAC 환경(인스턴스 2개 이상)이면 모든 인스턴스의 합산값을 사용하세요\n"
-            "  * DBCSI 리포트(MD)에 SQL*Net bytes 데이터가 있으면 그것을 우선 사용하세요\n"
-            "- Redo 생성량 (일별 바이트)\n\n"
-            "SGA 분석에서 다음 항목을 추출하세요:\n"
-            "- 현재 SGA 크기 (GB)\n"
-            "- 권장 SGA 크기 (GB)\n\n"
-            "스토리지 정보에서 다음 항목을 추출하세요:\n"
-            "- 현재 DB 크기 (GB)\n"
-            "- 연간 증가량 (GB) 또는 증가율 (%)\n\n"
+            "DBCSI 리포트에서 CPU/s 메트릭을 추출하세요:\n"
+            "- avg_cpu_per_s: '평균 CPU/s' 형태로 표시된 초당 CPU 사용량 절대값\n"
+            "- peak_cpu_per_s: '최대 CPU/s' 형태로 표시된 피크 CPU 사용량 절대값\n\n"
+            "참고: 서버 기본 정보(db_name, oracle_version, cpu_cores, num_cpus, "
+            "physical_memory_gb, db_size_gb, instance_config), AWR 성능 메트릭"
+            "(CPU%, IOPS, 메모리, 네트워크, Redo), SGA 분석은 AWR .out 파일에서 "
+            "직접 파싱하므로 문서에서 찾을 수 있으면 추출하되, 없어도 됩니다.\n\n"
             "{\n"
             '  "db_name": "데이터베이스 이름 (없으면 null)",\n'
             '  "oracle_version": "Oracle 버전 (없으면 null)",\n'
-            '  "current_instance": "현재 인스턴스 유형 (예: db.r6i.xlarge, 없으면 null)",\n'
-            '  "recommended_instance_by_size": "현재 사이즈 기준 권장 인스턴스 (없으면 null)",\n'
+            '  "current_instance": "현재 인스턴스 유형 (없으면 null)",\n'
+            '  "recommended_instance_by_size": "사이즈 기준 권장 인스턴스 (없으면 null)",\n'
             '  "recommended_instance_by_sga": "SGA 기준 권장 인스턴스 (없으면 null)",\n'
             '  "on_prem_cost": null,\n'
             '  "engine": "소스 DB 엔진 (예: oracle-ee, 없으면 null)",\n'
-            '  "target_engine": "마이그레이션 타겟 엔진. 문서에 추천 타겟이 명시되어 있으면 해당 값을 사용 '
-            '(aurora-postgresql, aurora-mysql, postgresql, mysql 중 하나, 없으면 null)",\n'
+            '  "target_engine": "마이그레이션 타겟 엔진 '
+            '(aurora-postgresql, aurora-mysql, postgresql, mysql 등, 없으면 null)",\n'
             '  "cpu_cores": "CPU 코어 수 (숫자, 없으면 null)",\n'
-            '  "num_cpus": "논리 CPU 수 (하이퍼스레딩 포함, 숫자, 없으면 null)",\n'
+            '  "num_cpus": "논리 CPU 수 (숫자, 없으면 null)",\n'
             '  "physical_memory_gb": "물리 메모리 GB (숫자, 없으면 null)",\n'
             '  "db_size_gb": "전체 DB 크기 GB (숫자, 없으면 null)",\n'
-            '  "instance_config": "인스턴스 구성 설명 (예: 2 (RAC), 없으면 null)",\n'
+            '  "instance_config": "인스턴스 구성 (예: 2 (RAC), 없으면 null)",\n'
             '  "awr_metrics": {\n'
-            '    "avg_cpu_percent": "평균 CPU 사용률 % (숫자, 없으면 null)",\n'
-            '    "peak_cpu_percent": "피크 CPU 사용률 % (숫자, 없으면 null)",\n'
-            '    "avg_cpu_per_s": "평균 CPU/s 초당 CPU 사용량 절대값 (숫자, 없으면 null)",\n'
-            '    "peak_cpu_per_s": "피크(최대) CPU/s 초당 CPU 사용량 절대값 (숫자, 없으면 null)",\n'
-            '    "avg_iops": "평균 IOPS (숫자, 없으면 null)",\n'
-            '    "peak_iops": "피크 IOPS (숫자, 없으면 null)",\n'
-            '    "avg_memory_gb": "평균 메모리 사용량 GB (숫자, 없으면 null)",\n'
-            '    "peak_memory_gb": "피크 메모리 사용량 GB (숫자, 없으면 null)",\n'
-            '    "sqlnet_bytes_sent_per_day": "네트워크 송신 일별 바이트. AWR SYSSTAT의 network_outgoing_mb를 일별 바이트로 변환한 값 (숫자, 없으면 null)",\n'
-            '    "sqlnet_bytes_received_per_day": "네트워크 수신 일별 바이트. AWR SYSSTAT의 network_incoming_mb를 일별 바이트로 변환한 값 (숫자, 없으면 null)",\n'
-            '    "redo_bytes_per_day": "Redo 생성량 일별 바이트. AWR MAIN-METRICS의 redo_mb_s를 일별 바이트로 변환한 값 (숫자, 없으면 null)"\n'
+            '    "avg_cpu_percent": null,\n'
+            '    "peak_cpu_percent": null,\n'
+            '    "avg_cpu_per_s": "평균 CPU/s (숫자, 없으면 null)",\n'
+            '    "peak_cpu_per_s": "피크 CPU/s (숫자, 없으면 null)",\n'
+            '    "avg_iops": null,\n'
+            '    "peak_iops": null,\n'
+            '    "avg_memory_gb": null,\n'
+            '    "peak_memory_gb": null,\n'
+            '    "sqlnet_bytes_sent_per_day": null,\n'
+            '    "sqlnet_bytes_received_per_day": null,\n'
+            '    "redo_bytes_per_day": null\n'
             '  },\n'
             '  "sga_analysis": {\n'
-            '    "current_sga_gb": "현재 SGA 크기 GB (숫자, 없으면 null)",\n'
-            '    "recommended_sga_gb": "권장 SGA 크기 GB (숫자, 없으면 null)",\n'
-            '    "sga_increase_rate_percent": "SGA 증가율 % (숫자, 없으면 null)"\n'
+            '    "current_sga_gb": null,\n'
+            '    "recommended_sga_gb": null,\n'
+            '    "sga_increase_rate_percent": null\n'
             '  },\n'
             '  "storage_growth": {\n'
             '    "current_db_size_gb": "현재 DB 크기 GB (숫자, 없으면 null)",\n'
