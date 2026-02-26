@@ -1,9 +1,9 @@
 """
-문서 직접 파싱 모듈.
+문서 파싱 모듈.
 
-이 모듈은 AWR .out 파일, migration_recommendation.md, DBCSI MD 리포트를
-직접 파싱하여 인스턴스 사양 정보를 추출하는 DocumentParser 클래스를 제공합니다.
-Bedrock(AI) 호출 없이 모든 필드를 직접 파싱으로 구성합니다.
+정형 소스(AWR .out, migration_recommendation.md, DBCSI MD)는 직접 파싱하고,
+비정형 소스(PDF, DOCX)는 Bedrock(AI)으로 보조 파싱합니다.
+직접 파싱 결과가 항상 우선하며, Bedrock은 누락 필드만 보완합니다.
 """
 
 from __future__ import annotations
@@ -25,31 +25,30 @@ SUPPORTED_FORMATS: list[str] = [".pdf", ".docx", ".txt", ".md", ".out"]
 
 
 class DocumentParser:
-    """문서 파일에서 직접 파싱으로 인스턴스 사양 정보를 추출하는 클래스.
+    """문서 파일에서 인스턴스 사양 정보를 추출하는 클래스.
 
-    단일 파일 또는 디렉토리를 입력받을 수 있습니다.
-    AWR .out 파일, migration_recommendation.md, DBCSI MD 리포트를
-    직접 파싱하여 Bedrock(AI) 호출 없이 모든 필드를 구성합니다.
+    정형 소스(AWR .out, migration_recommendation.md, DBCSI MD)는 직접 파싱하고,
+    비정형 소스(PDF, DOCX)가 있으면 Bedrock(AI)으로 보조 파싱합니다.
+    직접 파싱 결과가 항상 우선하며, Bedrock은 누락 필드만 보완합니다.
     """
 
     def __init__(self, bedrock_client: "BedrockClient | None" = None) -> None:
         """DocumentParser 초기화.
 
         Args:
-            bedrock_client: AWS Bedrock Runtime 클라이언트 인스턴스 (향후 AI 추론용, 파싱에는 불필요)
+            bedrock_client: AWS Bedrock Runtime 클라이언트 인스턴스.
+                            비정형 문서(PDF/DOCX) 보조 파싱에 사용.
+                            None이면 비정형 문서는 스킵됩니다.
         """
-        # Bedrock 클라이언트 저장 (향후 AI 추론용으로 유지)
         self._bedrock_client = bedrock_client
 
     def parse(self, file_path: str) -> ParsedDocumentInfo:
-        """파일 또는 디렉토리를 입력받아 직접 파싱으로 인스턴스 사양 정보를 추출합니다.
+        """파일 또는 디렉토리를 입력받아 인스턴스 사양 정보를 추출합니다.
 
-        직접 파싱 소스:
-        1. AWR .out 파일 → 서버 정보, 성능 메트릭, SGA, 네트워크
-        2. migration_recommendation.md → 타겟 엔진, 인스턴스 추천
-        3. DBCSI MD 리포트 → CPU/s 메트릭
-
-        Bedrock(AI) 호출 없이 모든 필드를 직접 파싱으로 구성합니다.
+        파싱 전략:
+        1. 정형 소스 직접 파싱 (AWR .out, migration_recommendation.md, DBCSI MD)
+        2. 비정형 소스(PDF/DOCX)가 있으면 Bedrock(AI)으로 보조 파싱
+        3. 직접 파싱 결과 우선, Bedrock은 None인 필드만 보완
 
         Args:
             file_path: 파싱할 문서 파일 또는 디렉토리 경로
@@ -57,21 +56,29 @@ class DocumentParser:
         Returns:
             문서에서 추출한 인스턴스 사양 정보
         """
-        logger.info("문서 파싱 시작 (직접 파싱): %s", file_path)
+        logger.info("문서 파싱 시작: %s", file_path)
 
-        # 1단계: AWR .out 파일 직접 파싱
+        # 1단계: 정형 소스 직접 파싱
         awr_parsed = self._parse_awr_out_full(file_path)
-
-        # 2단계: 직접 파싱 결과로 ParsedDocumentInfo 구성
         result = ParsedDocumentInfo()
-
-        # 3단계: AWR 직접 파싱 결과 적용
         self._apply_awr_parsed(awr_parsed, result)
-
-        # 4단계: MD 파일 직접 파싱 결과 적용
         self._supplement_from_md_files(file_path, result)
 
-        logger.info("문서 파싱 완료 (직접 파싱): db_name=%s", result.db_name)
+        # 2단계: 비정형 소스(PDF/DOCX) Bedrock 보조 파싱
+        unstructured_files = self._find_unstructured_files(file_path)
+        if unstructured_files:
+            if self._bedrock_client is not None:
+                bedrock_result = self._parse_unstructured_with_bedrock(unstructured_files)
+                if bedrock_result is not None:
+                    self._merge_bedrock_supplement(bedrock_result, result)
+            else:
+                logger.warning(
+                    "비정형 파일 %d개 발견했으나 Bedrock 클라이언트 없음, 스킵: %s",
+                    len(unstructured_files),
+                    [os.path.basename(f) for f in unstructured_files],
+                )
+
+        logger.info("문서 파싱 완료: db_name=%s", result.db_name)
         return result
 
 
@@ -659,6 +666,183 @@ class DocumentParser:
 
 
 
+
+    # ─── 비정형 소스(PDF/DOCX) Bedrock 보조 파싱 ───
+
+    # 직접 파싱 대상 확장자 (Bedrock에 보내지 않음)
+    _STRUCTURED_EXTENSIONS: set[str] = {".out", ".md", ".txt"}
+
+    # 비정형 소스 확장자 (Bedrock 보조 파싱 대상)
+    _UNSTRUCTURED_EXTENSIONS: set[str] = {".pdf", ".docx"}
+
+    def _find_unstructured_files(self, file_path: str) -> list[str]:
+        """디렉토리에서 비정형 파일(PDF/DOCX)을 찾습니다.
+
+        단일 파일 입력 시 해당 파일이 비정형이면 리스트로 반환합니다.
+        """
+        if os.path.isfile(file_path):
+            ext = os.path.splitext(file_path)[1].lower()
+            if ext in self._UNSTRUCTURED_EXTENSIONS:
+                return [file_path]
+            return []
+
+        if not os.path.isdir(file_path):
+            return []
+
+        result: list[str] = []
+        for entry in sorted(os.listdir(file_path)):
+            entry_path = os.path.join(file_path, entry)
+            if not os.path.isfile(entry_path):
+                continue
+            ext = os.path.splitext(entry)[1].lower()
+            if ext in self._UNSTRUCTURED_EXTENSIONS:
+                result.append(entry_path)
+        return result
+
+    def _extract_text_from_pdf(self, file_path: str) -> str:
+        """PDF 파일에서 텍스트를 추출합니다."""
+        import pypdf
+
+        logger.debug("PDF 텍스트 추출: %s", file_path)
+        reader = pypdf.PdfReader(file_path)
+        pages = [p.extract_text() for p in reader.pages if p.extract_text()]
+        return "\n".join(pages)
+
+    def _extract_text_from_docx(self, file_path: str) -> str:
+        """DOCX 파일에서 텍스트를 추출합니다."""
+        import docx
+
+        logger.debug("DOCX 텍스트 추출: %s", file_path)
+        document = docx.Document(file_path)
+        return "\n".join(p.text for p in document.paragraphs)
+
+    def _extract_unstructured_text(self, file_path: str) -> str:
+        """비정형 파일에서 텍스트를 추출합니다."""
+        ext = os.path.splitext(file_path)[1].lower()
+        if ext == ".pdf":
+            return self._extract_text_from_pdf(file_path)
+        elif ext == ".docx":
+            return self._extract_text_from_docx(file_path)
+        return ""
+
+    def _parse_unstructured_with_bedrock(
+        self, files: list[str]
+    ) -> "ParsedDocumentInfo | None":
+        """비정형 파일들의 텍스트를 Bedrock에 전달하여 보조 파싱합니다.
+
+        Returns:
+            Bedrock 파싱 결과 또는 실패 시 None
+        """
+        text_parts: list[str] = []
+        for fpath in files:
+            fname = os.path.basename(fpath)
+            try:
+                text = self._extract_unstructured_text(fpath)
+                if text.strip():
+                    text_parts.append(f"=== 파일: {fname} ===\n{text}")
+                    logger.info("비정형 파일 텍스트 추출 완료: %s (%d자)", fname, len(text))
+            except Exception as e:
+                logger.warning("비정형 파일 텍스트 추출 실패: %s - %s", fname, e)
+
+        if not text_parts:
+            return None
+
+        combined = "\n\n".join(text_parts)
+        logger.info("비정형 파일 %d개 → Bedrock 보조 파싱 시작 (%d자)",
+                     len(text_parts), len(combined))
+
+        try:
+            return self._bedrock_client.invoke(combined)  # type: ignore[union-attr]
+        except Exception as e:
+            logger.warning("Bedrock 보조 파싱 실패: %s", e)
+            return None
+
+    @staticmethod
+    def _merge_bedrock_supplement(
+        bedrock: "ParsedDocumentInfo", result: "ParsedDocumentInfo"
+    ) -> None:
+        """Bedrock 보조 파싱 결과를 직접 파싱 결과에 병합합니다.
+
+        직접 파싱 결과가 이미 있는 필드는 유지하고,
+        None인 필드만 Bedrock 결과로 채웁니다.
+        """
+        # 기본 정보 (직접 파싱 결과가 없을 때만 보완)
+        if not result.db_name and bedrock.db_name:
+            result.db_name = bedrock.db_name
+        if not result.oracle_version and bedrock.oracle_version:
+            result.oracle_version = bedrock.oracle_version
+        if result.cpu_cores is None and bedrock.cpu_cores is not None:
+            result.cpu_cores = bedrock.cpu_cores
+        if result.num_cpus is None and bedrock.num_cpus is not None:
+            result.num_cpus = bedrock.num_cpus
+        if result.physical_memory_gb is None and bedrock.physical_memory_gb is not None:
+            result.physical_memory_gb = bedrock.physical_memory_gb
+        if result.db_size_gb is None and bedrock.db_size_gb is not None:
+            result.db_size_gb = bedrock.db_size_gb
+        if not result.instance_config and bedrock.instance_config:
+            result.instance_config = bedrock.instance_config
+        if not result.current_instance and bedrock.current_instance:
+            result.current_instance = bedrock.current_instance
+        if not result.engine and bedrock.engine:
+            result.engine = bedrock.engine
+        if not result.target_engine and bedrock.target_engine:
+            result.target_engine = bedrock.target_engine
+        if not result.recommended_instance_by_size and bedrock.recommended_instance_by_size:
+            result.recommended_instance_by_size = bedrock.recommended_instance_by_size
+        if not result.recommended_instance_by_sga and bedrock.recommended_instance_by_sga:
+            result.recommended_instance_by_sga = bedrock.recommended_instance_by_sga
+        if result.on_prem_cost is None and bedrock.on_prem_cost is not None:
+            result.on_prem_cost = bedrock.on_prem_cost
+
+        # AWR 메트릭 (직접 파싱 결과가 없을 때만 보완)
+        rm = result.awr_metrics
+        bm = bedrock.awr_metrics
+        if rm.avg_cpu_percent is None and bm.avg_cpu_percent is not None:
+            rm.avg_cpu_percent = bm.avg_cpu_percent
+        if rm.peak_cpu_percent is None and bm.peak_cpu_percent is not None:
+            rm.peak_cpu_percent = bm.peak_cpu_percent
+        if rm.avg_cpu_per_s is None and bm.avg_cpu_per_s is not None:
+            rm.avg_cpu_per_s = bm.avg_cpu_per_s
+        if rm.peak_cpu_per_s is None and bm.peak_cpu_per_s is not None:
+            rm.peak_cpu_per_s = bm.peak_cpu_per_s
+        if rm.avg_iops is None and bm.avg_iops is not None:
+            rm.avg_iops = bm.avg_iops
+        if rm.peak_iops is None and bm.peak_iops is not None:
+            rm.peak_iops = bm.peak_iops
+        if rm.avg_memory_gb is None and bm.avg_memory_gb is not None:
+            rm.avg_memory_gb = bm.avg_memory_gb
+        if rm.peak_memory_gb is None and bm.peak_memory_gb is not None:
+            rm.peak_memory_gb = bm.peak_memory_gb
+        if rm.sqlnet_bytes_sent_per_day is None and bm.sqlnet_bytes_sent_per_day is not None:
+            rm.sqlnet_bytes_sent_per_day = bm.sqlnet_bytes_sent_per_day
+        if rm.sqlnet_bytes_received_per_day is None and bm.sqlnet_bytes_received_per_day is not None:
+            rm.sqlnet_bytes_received_per_day = bm.sqlnet_bytes_received_per_day
+        if rm.redo_bytes_per_day is None and bm.redo_bytes_per_day is not None:
+            rm.redo_bytes_per_day = bm.redo_bytes_per_day
+
+        # SGA 분석
+        rs = result.sga_analysis
+        bs = bedrock.sga_analysis
+        if rs.current_sga_gb is None and bs.current_sga_gb is not None:
+            rs.current_sga_gb = bs.current_sga_gb
+        if rs.recommended_sga_gb is None and bs.recommended_sga_gb is not None:
+            rs.recommended_sga_gb = bs.recommended_sga_gb
+
+        # 스토리지 증가 추이
+        rg = result.storage_growth
+        bg = bedrock.storage_growth
+        if rg.current_db_size_gb is None and bg.current_db_size_gb is not None:
+            rg.current_db_size_gb = bg.current_db_size_gb
+        if rg.yearly_growth_gb is None and bg.yearly_growth_gb is not None:
+            rg.yearly_growth_gb = bg.yearly_growth_gb
+
+        # 프로비저닝 IOPS/처리량
+        if result.provisioned_iops is None and bedrock.provisioned_iops is not None:
+            result.provisioned_iops = bedrock.provisioned_iops
+        if result.provisioned_throughput_mbps is None and bedrock.provisioned_throughput_mbps is not None:
+            result.provisioned_throughput_mbps = bedrock.provisioned_throughput_mbps
+
+        logger.info("Bedrock 보조 파싱 결과 병합 완료 (직접 파싱 우선)")
 
     def _find_awr_out_files(self, file_path: str) -> list[str]:
         """AWR .out 파일을 찾습니다."""

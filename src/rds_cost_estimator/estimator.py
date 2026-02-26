@@ -15,6 +15,7 @@ from typing import Optional
 
 import boto3
 
+from rds_cost_estimator.bedrock_client import BedrockClient
 from rds_cost_estimator.db_store import DuckDBStore
 from rds_cost_estimator.document_parser import DocumentParser
 from rds_cost_estimator.exceptions import InvalidInputError
@@ -96,7 +97,11 @@ class Estimator:
             # 문서 파싱
             if args.input_file is not None:
                 logger.info("문서 파일 파싱 시작: %s", args.input_file)
-                parser = DocumentParser()
+                # 비정형 파일(PDF/DOCX) 보조 파싱을 위해 BedrockClient 전달
+                bedrock_client = BedrockClient(
+                    session=self._session, model_id=args.bedrock_model,
+                )
+                parser = DocumentParser(bedrock_client=bedrock_client)
                 parsed_info = parser.parse(args.input_file)
                 self._merge_parsed_info(parsed_info)
                 logger.info("문서 파싱 완료")
