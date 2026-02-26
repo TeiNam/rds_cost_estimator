@@ -70,7 +70,6 @@ class TestInputFileIntegration:
         mock_parser.parse.return_value = parsed_info
 
         with patch("rds_cost_estimator.estimator.DocumentParser", return_value=mock_parser):
-            with patch("rds_cost_estimator.estimator.BedrockClient"):
                 estimator._pricing_client.fetch_all = AsyncMock(return_value=[])
                 await estimator.run_v2()
 
@@ -98,7 +97,6 @@ class TestInputFileIntegration:
         mock_parser.parse.return_value = parsed_info
 
         with patch("rds_cost_estimator.estimator.DocumentParser", return_value=mock_parser):
-            with patch("rds_cost_estimator.estimator.BedrockClient"):
                 estimator._pricing_client.fetch_all = AsyncMock(return_value=[])
                 await estimator.run_v2()
 
@@ -125,7 +123,6 @@ class TestInputFileIntegration:
         mock_parser.parse.return_value = parsed_info
 
         with patch("rds_cost_estimator.estimator.DocumentParser", return_value=mock_parser):
-            with patch("rds_cost_estimator.estimator.BedrockClient"):
                 estimator._pricing_client.fetch_all = AsyncMock(return_value=[])
                 await estimator.run_v2()
 
@@ -153,7 +150,6 @@ class TestInputFileIntegration:
         mock_parser.parse.return_value = parsed_info
 
         with patch("rds_cost_estimator.estimator.DocumentParser", return_value=mock_parser):
-            with patch("rds_cost_estimator.estimator.BedrockClient"):
                 estimator._pricing_client.fetch_all = AsyncMock(return_value=[])
                 await estimator.run_v2()
 

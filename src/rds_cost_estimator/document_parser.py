@@ -1,18 +1,17 @@
 """
-문서 파일 텍스트 추출 및 Bedrock 파싱 모듈.
+문서 직접 파싱 모듈.
 
-이 모듈은 PDF, DOCX, TXT 파일에서 텍스트를 추출하고
-AWS Bedrock(Claude 모델)을 호출하여 인스턴스 사양 정보를 파싱하는
-DocumentParser 클래스를 제공합니다.
+이 모듈은 AWR .out 파일, migration_recommendation.md, DBCSI MD 리포트를
+직접 파싱하여 인스턴스 사양 정보를 추출하는 DocumentParser 클래스를 제공합니다.
+Bedrock(AI) 호출 없이 모든 필드를 직접 파싱으로 구성합니다.
 """
 
 from __future__ import annotations
 
 import logging
 import os
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING
 
-from rds_cost_estimator.exceptions import UnsupportedFileFormatError
 from rds_cost_estimator.models import ParsedDocumentInfo
 
 if TYPE_CHECKING:
@@ -26,292 +25,62 @@ SUPPORTED_FORMATS: list[str] = [".pdf", ".docx", ".txt", ".md", ".out"]
 
 
 class DocumentParser:
-    """문서 파일에서 텍스트를 추출하고 Bedrock으로 인스턴스 사양 정보를 파싱하는 클래스.
+    """문서 파일에서 직접 파싱으로 인스턴스 사양 정보를 추출하는 클래스.
 
     단일 파일 또는 디렉토리를 입력받을 수 있습니다.
-    디렉토리 입력 시 폴더 내 모든 지원 파일(PDF/DOCX/TXT/MD)의 텍스트를
-    합쳐서 Bedrock에 전달합니다.
-
-    Attributes:
-        _bedrock_client: Bedrock API 호출을 담당하는 클라이언트 인스턴스
+    AWR .out 파일, migration_recommendation.md, DBCSI MD 리포트를
+    직접 파싱하여 Bedrock(AI) 호출 없이 모든 필드를 구성합니다.
     """
 
-    def __init__(self, bedrock_client: "BedrockClient") -> None:
+    def __init__(self, bedrock_client: "BedrockClient | None" = None) -> None:
         """DocumentParser 초기화.
 
         Args:
-            bedrock_client: AWS Bedrock Runtime 클라이언트 인스턴스
+            bedrock_client: AWS Bedrock Runtime 클라이언트 인스턴스 (향후 AI 추론용, 파싱에는 불필요)
         """
-        # Bedrock 클라이언트 저장
+        # Bedrock 클라이언트 저장 (향후 AI 추론용으로 유지)
         self._bedrock_client = bedrock_client
 
     def parse(self, file_path: str) -> ParsedDocumentInfo:
-        """파일 또는 디렉토리를 입력받아 텍스트를 추출한 뒤 Bedrock으로 파싱.
+        """파일 또는 디렉토리를 입력받아 직접 파싱으로 인스턴스 사양 정보를 추출합니다.
 
-        AWR .out 파일은 직접 파싱하여 Bedrock 컨텍스트에서 제외합니다.
-        직접 파싱 결과를 먼저 적용하고, Bedrock 결과는 누락 필드만 보완합니다.
+        직접 파싱 소스:
+        1. AWR .out 파일 → 서버 정보, 성능 메트릭, SGA, 네트워크
+        2. migration_recommendation.md → 타겟 엔진, 인스턴스 추천
+        3. DBCSI MD 리포트 → CPU/s 메트릭
+
+        Bedrock(AI) 호출 없이 모든 필드를 직접 파싱으로 구성합니다.
 
         Args:
             file_path: 파싱할 문서 파일 또는 디렉토리 경로
 
         Returns:
             문서에서 추출한 인스턴스 사양 정보
-
-        Raises:
-            UnsupportedFileFormatError: 지원하지 않는 파일 형식인 경우
-            DocumentParseError: Bedrock API 호출 실패 또는 응답 파싱 실패 시
         """
-        logger.info("문서 파싱 시작: %s", file_path)
+        logger.info("문서 파싱 시작 (직접 파싱): %s", file_path)
 
-        # 1단계: AWR .out 파일 직접 파싱 (Bedrock 호출 전)
+        # 1단계: AWR .out 파일 직접 파싱
         awr_parsed = self._parse_awr_out_full(file_path)
 
-        # 2단계: .out 제외한 텍스트 추출 → Bedrock 호출
-        if os.path.isdir(file_path):
-            text = self._extract_text_from_directory(file_path)
-        else:
-            text = self._extract_text(file_path)
+        # 2단계: 직접 파싱 결과로 ParsedDocumentInfo 구성
+        result = ParsedDocumentInfo()
 
-        logger.debug("텍스트 추출 완료 (.out 제외): %d자", len(text))
-
-        # Bedrock 호출 (텍스트가 비어있으면 빈 ParsedDocumentInfo 반환)
-        if text.strip():
-            result = self._bedrock_client.invoke(text)
-            logger.info("Bedrock 파싱 완료: %s", file_path)
-        else:
-            result = ParsedDocumentInfo()
-            logger.info("Bedrock 컨텍스트 없음, 직접 파싱 결과만 사용")
-
-        # 3단계: 직접 파싱 결과를 Bedrock 결과에 병합 (직접 파싱 우선)
+        # 3단계: AWR 직접 파싱 결과 적용
         self._apply_awr_parsed(awr_parsed, result)
 
-        # 4단계: migration_recommendation.md에서 타겟 엔진 직접 파싱
-        self._supplement_target_engine(file_path, result)
+        # 4단계: MD 파일 직접 파싱 결과 적용
+        self._supplement_from_md_files(file_path, result)
 
+        logger.info("문서 파싱 완료 (직접 파싱): db_name=%s", result.db_name)
         return result
 
-    def _extract_text_from_directory(self, dir_path: str) -> str:
-        """디렉토리 내 지원 파일에서 텍스트를 추출하여 합칩니다.
 
-        .out 파일은 직접 파싱으로 대체하므로 Bedrock 컨텍스트에서 제외합니다.
-        PDF/DOCX/TXT/MD 파일만 Bedrock에 전달합니다.
 
-        Args:
-            dir_path: 탐색할 디렉토리 경로
 
-        Returns:
-            모든 파일의 텍스트를 합친 문자열
 
-        Raises:
-            UnsupportedFileFormatError: 디렉토리에 지원 파일이 없는 경우
-        """
-        logger.info("디렉토리 내 파일 탐색 시작: %s", dir_path)
 
-        # 지원 파일 확장자 필터링 (.out 제외 - 직접 파싱으로 대체)
-        supported_files: list[str] = []
-        has_any_supported = False
-        for entry in sorted(os.listdir(dir_path)):
-            entry_path = os.path.join(dir_path, entry)
-            if not os.path.isfile(entry_path):
-                continue
-            dot_index = entry.rfind(".")
-            if dot_index == -1:
-                continue
-            ext = entry[dot_index:].lower()
-            if ext in (".pdf", ".docx", ".txt", ".md", ".out"):
-                has_any_supported = True
-                # .out 파일은 직접 파싱으로 대체 → Bedrock 컨텍스트에서 제외
-                if ext != ".out":
-                    supported_files.append(entry_path)
 
-        if not has_any_supported:
-            logger.warning("디렉토리에 지원 파일 없음: %s", dir_path)
-            raise UnsupportedFileFormatError(dir_path, SUPPORTED_FORMATS)
 
-        if not supported_files:
-            # .out 파일만 있는 경우 빈 텍스트 반환 (직접 파싱으로 처리)
-            logger.info("디렉토리에 .out 파일만 존재, Bedrock 컨텍스트 비어있음")
-            return ""
-
-        logger.info("디렉토리에서 %d개 파일 발견 (.out 제외): %s",
-                     len(supported_files),
-                     [os.path.basename(f) for f in supported_files])
-
-        # 각 파일의 텍스트를 구분자와 함께 결합
-        text_parts: list[str] = []
-        for fpath in supported_files:
-            fname = os.path.basename(fpath)
-            logger.debug("파일 텍스트 추출: %s", fname)
-            file_text = self._extract_text(fpath)
-            text_parts.append(
-                f"=== 파일: {fname} ===\n{file_text}"
-            )
-
-        combined = "\n\n".join(text_parts)
-        logger.info("디렉토리 텍스트 합치기 완료: %d개 파일, 총 %d자",
-                     len(supported_files), len(combined))
-        return combined
-
-    def _extract_text(self, file_path: str) -> str:
-        """파일 형식별 텍스트 추출.
-
-        파일 형식을 감지하여 적절한 라이브러리로 텍스트를 추출합니다:
-        - PDF: pypdf.PdfReader로 페이지별 텍스트 추출 후 결합
-        - DOCX: docx.Document로 단락(paragraph) 텍스트 추출 후 결합
-        - TXT: 내장 open()으로 UTF-8 직접 읽기
-
-        Args:
-            file_path: 텍스트를 추출할 파일 경로
-
-        Returns:
-            추출된 텍스트 문자열
-
-        Raises:
-            UnsupportedFileFormatError: 지원하지 않는 파일 형식인 경우
-        """
-        # 파일 형식 감지
-        fmt = self._detect_format(file_path)
-
-        if fmt == "pdf":
-            # PDF: pypdf 라이브러리로 페이지별 텍스트 추출
-            return self._extract_text_from_pdf(file_path)
-        elif fmt == "docx":
-            # DOCX: python-docx 라이브러리로 단락 텍스트 추출
-            return self._extract_text_from_docx(file_path)
-        elif fmt == "md":
-            # MD: 내장 open()으로 UTF-8 직접 읽기 (TXT와 동일)
-            return self._extract_text_from_txt(file_path)
-        else:
-            # TXT: 내장 open()으로 UTF-8 직접 읽기
-            return self._extract_text_from_txt(file_path)
-
-    def _detect_format(self, file_path: str) -> Literal["pdf", "docx", "txt", "md"]:
-        """파일 확장자로 형식 감지.
-
-        파일 경로에서 확장자를 추출하여 지원하는 형식인지 확인합니다.
-        확장자는 소문자로 변환하여 비교합니다.
-
-        Args:
-            file_path: 형식을 감지할 파일 경로
-
-        Returns:
-            감지된 파일 형식 ("pdf", "docx", "txt" 중 하나)
-
-        Raises:
-            UnsupportedFileFormatError: 지원하지 않는 파일 형식인 경우
-        """
-        # 파일 경로에서 확장자 추출 (소문자 변환)
-        # 예: "/path/to/file.PDF" → ".pdf"
-        dot_index = file_path.rfind(".")
-        if dot_index == -1:
-            # 확장자가 없는 경우
-            ext = ""
-        else:
-            ext = file_path[dot_index:].lower()
-
-        # 지원하는 형식 매핑
-        if ext == ".pdf":
-            return "pdf"
-        elif ext == ".docx":
-            return "docx"
-        elif ext == ".txt":
-            return "txt"
-        elif ext == ".md":
-            return "md"
-        elif ext == ".out":
-            # AWR .out 파일은 텍스트 형식으로 처리
-            return "txt"
-        else:
-            # 지원하지 않는 형식이면 예외 발생
-            logger.warning("지원하지 않는 파일 형식: %s (확장자: %s)", file_path, ext)
-            raise UnsupportedFileFormatError(file_path, SUPPORTED_FORMATS)
-
-    def _extract_text_from_pdf(self, file_path: str) -> str:
-        """PDF 파일에서 텍스트 추출.
-
-        pypdf.PdfReader를 사용하여 각 페이지의 텍스트를 추출하고
-        줄바꿈으로 결합합니다.
-
-        Args:
-            file_path: PDF 파일 경로
-
-        Returns:
-            추출된 텍스트 (페이지별 텍스트를 "\n"으로 결합)
-        """
-        import pypdf  # PDF 텍스트 추출 라이브러리
-
-        logger.debug("PDF 텍스트 추출 시작: %s", file_path)
-
-        # PdfReader로 PDF 파일 열기
-        reader = pypdf.PdfReader(file_path)
-
-        # 각 페이지에서 텍스트 추출
-        page_texts: list[str] = []
-        for page in reader.pages:
-            page_text = page.extract_text()
-            if page_text:
-                page_texts.append(page_text)
-
-        # 페이지별 텍스트를 줄바꿈으로 결합
-        result = "\n".join(page_texts)
-        logger.debug("PDF 텍스트 추출 완료: %d페이지, %d자", len(reader.pages), len(result))
-
-        return result
-
-    def _extract_text_from_docx(self, file_path: str) -> str:
-        """DOCX 파일에서 텍스트 추출.
-
-        python-docx 라이브러리를 사용하여 각 단락(paragraph)의 텍스트를 추출하고
-        줄바꿈으로 결합합니다.
-
-        Args:
-            file_path: DOCX 파일 경로
-
-        Returns:
-            추출된 텍스트 (단락별 텍스트를 "\n"으로 결합)
-        """
-        import docx  # python-docx 라이브러리 (Word 문서 처리)
-
-        logger.debug("DOCX 텍스트 추출 시작: %s", file_path)
-
-        # Document 객체로 DOCX 파일 열기
-        document = docx.Document(file_path)
-
-        # 각 단락에서 텍스트 추출
-        paragraph_texts: list[str] = [
-            paragraph.text for paragraph in document.paragraphs
-        ]
-
-        # 단락별 텍스트를 줄바꿈으로 결합
-        result = "\n".join(paragraph_texts)
-        logger.debug(
-            "DOCX 텍스트 추출 완료: %d단락, %d자",
-            len(document.paragraphs),
-            len(result),
-        )
-
-        return result
-
-    def _extract_text_from_txt(self, file_path: str) -> str:
-        """TXT 파일에서 텍스트 추출.
-
-        내장 open() 함수를 사용하여 UTF-8 인코딩으로 파일을 직접 읽습니다.
-
-        Args:
-            file_path: TXT 파일 경로
-
-        Returns:
-            파일 전체 내용 문자열
-        """
-        logger.debug("TXT 텍스트 추출 시작: %s", file_path)
-
-        # UTF-8 인코딩으로 텍스트 파일 직접 읽기
-        with open(file_path, "r", encoding="utf-8") as f:
-            result = f.read()
-
-        logger.debug("TXT 텍스트 추출 완료: %d자", len(result))
-
-        return result
 
     def _parse_awr_out_full(self, file_path: str) -> dict:
         """AWR .out 파일의 모든 섹션을 직접 파싱합니다.
@@ -888,72 +657,7 @@ class DocumentParser:
 
         return result
 
-    def _parse_awr_out_network_from_content(self, content: str) -> dict:
-        """AWR .out 파일 내용에서 네트워크/Redo 데이터를 파싱합니다.
 
-        기존 _parse_awr_out_network의 내부 로직을 content 기반으로 분리.
-        """
-        result: dict = {}
-
-        # MAIN-METRICS에서 dur_m 확보
-        main_metrics = self._parse_main_metrics_section(content)
-
-        # SYSSTAT 섹션 파싱
-        sysstat_data = self._parse_sysstat_section(content)
-        if sysstat_data:
-            dur_m = (main_metrics or {}).get("dur_m") or sysstat_data.get("dur_m", 60)
-            factor = (1440.0 / dur_m) * 1024 * 1024
-
-            if sysstat_data.get("network_outgoing_mb") is not None:
-                result["sent_bytes_per_day"] = sysstat_data["network_outgoing_mb"] * factor
-
-            if sysstat_data.get("network_incoming_mb") is not None:
-                result["recv_bytes_per_day"] = sysstat_data["network_incoming_mb"] * factor
-
-        # Redo는 _parse_main_metrics_full에서 이미 처리되므로 여기서는 스킵
-        # (중복 방지)
-
-        return result
-
-    def _supplement_awr_network_data(
-        self, file_path: str, parsed: ParsedDocumentInfo
-    ) -> None:
-        """AWR .out 파일에서 네트워크/Redo 데이터를 직접 파싱합니다.
-
-        Bedrock(AI)은 AWR .out 파일의 넓은 테이블에서 네트워크 컬럼을
-        정확히 추출하지 못하는 경우가 많으므로, 직접 파싱 결과를 우선 사용합니다.
-        직접 파싱에 성공하면 Bedrock 결과를 덮어씁니다.
-
-        파싱 대상:
-        - SYSSTAT 섹션: network_incoming_mb, network_outgoing_mb
-        - MAIN-METRICS 섹션: redo_mb_s, dur_m (스냅샷 기간)
-        """
-        # AWR .out 파일 찾기
-        out_files = self._find_awr_out_files(file_path)
-        if not out_files:
-            logger.debug("AWR .out 파일 없음, 네트워크 데이터 직접 파싱 스킵")
-            return
-
-        awr = parsed.awr_metrics
-
-        for out_file in out_files:
-            logger.info("AWR .out 파일 직접 파싱 (AI 대신 우선 사용): %s", out_file)
-            net_data = self._parse_awr_out_network(out_file)
-            if not net_data:
-                continue
-
-            # 직접 파싱 결과로 덮어쓰기 (Bedrock 결과보다 정확)
-            if net_data.get("sent_bytes_per_day") is not None:
-                awr.sqlnet_bytes_sent_per_day = net_data["sent_bytes_per_day"]
-                logger.info("네트워크 송신 (직접 파싱): %.0f bytes/일", awr.sqlnet_bytes_sent_per_day)
-
-            if net_data.get("recv_bytes_per_day") is not None:
-                awr.sqlnet_bytes_received_per_day = net_data["recv_bytes_per_day"]
-                logger.info("네트워크 수신 (직접 파싱): %.0f bytes/일", awr.sqlnet_bytes_received_per_day)
-
-            if net_data.get("redo_bytes_per_day") is not None:
-                awr.redo_bytes_per_day = net_data["redo_bytes_per_day"]
-                logger.info("Redo 생성량 (직접 파싱): %.0f bytes/일", awr.redo_bytes_per_day)
 
 
     def _find_awr_out_files(self, file_path: str) -> list[str]:
@@ -970,52 +674,6 @@ class DocumentParser:
 
         return []
 
-    def _parse_awr_out_network(self, out_file: str) -> dict:
-        """AWR .out 파일에서 네트워크/Redo 데이터를 파싱합니다.
-
-        SYSSTAT 섹션에서 network_incoming_mb/network_outgoing_mb를,
-        MAIN-METRICS 섹션에서 redo_mb_s와 dur_m을 추출합니다.
-
-        Returns:
-            dict with keys: sent_bytes_per_day, recv_bytes_per_day, redo_bytes_per_day
-        """
-        import re
-
-        try:
-            with open(out_file, "r", encoding="utf-8") as f:
-                content = f.read()
-        except Exception as e:
-            logger.warning("AWR .out 파일 읽기 실패: %s - %s", out_file, e)
-            return {}
-
-        result: dict = {}
-
-        # MAIN-METRICS 섹션을 먼저 파싱하여 실제 dur_m 확보
-        main_metrics = self._parse_main_metrics_section(content)
-
-        # SYSSTAT 섹션 파싱: network_incoming_mb, network_outgoing_mb
-        sysstat_data = self._parse_sysstat_section(content)
-        if sysstat_data:
-            # SYSSTAT의 값은 스냅샷 기간(보통 60분) 동안의 MB 값
-            # MAIN-METRICS에서 실제 dur_m을 가져와 사용
-            dur_m = (main_metrics or {}).get("dur_m") or sysstat_data.get("dur_m", 60)
-            # 일별로 변환: MB × (1440 / dur_m) × 1024 × 1024
-            factor = (1440.0 / dur_m) * 1024 * 1024
-
-            if sysstat_data.get("network_outgoing_mb") is not None:
-                result["sent_bytes_per_day"] = sysstat_data["network_outgoing_mb"] * factor
-
-            if sysstat_data.get("network_incoming_mb") is not None:
-                result["recv_bytes_per_day"] = sysstat_data["network_incoming_mb"] * factor
-
-        # MAIN-METRICS 섹션에서 redo_mb_s 추출 (이미 위에서 파싱됨)
-        if main_metrics and main_metrics.get("redo_mb_s") is not None:
-            # redo_mb_s는 초당 MB → 일별 바이트: × 86400 × 1024 × 1024
-            result["redo_bytes_per_day"] = (
-                main_metrics["redo_mb_s"] * 86400 * 1024 * 1024
-            )
-
-        return result
 
     def _parse_sysstat_section(self, content: str) -> dict:
         """AWR .out의 SYSSTAT 섹션에서 네트워크 데이터를 파싱합니다.
@@ -1199,47 +857,159 @@ class DocumentParser:
         "rds for oracle": "oracle-ee",
     }
 
-    def _supplement_target_engine(
+    def _supplement_from_md_files(
         self, file_path: str, parsed: "ParsedDocumentInfo"
     ) -> None:
-        """migration_recommendation.md에서 '추천 타겟' 필드를 파싱하여 target_engine을 보완합니다.
+        """migration_recommendation.md와 DBCSI MD 리포트에서 직접 파싱합니다.
 
-        Bedrock이 소스 엔진(oracle-ee)을 반환하는 경우가 많으므로,
-        migration_recommendation.md의 '추천 타겟' 텍스트에서 타겟 엔진을 직접 추출합니다.
+        Bedrock 호출 없이 추출 가능한 필드:
+        - target_engine: 추천 타겟 엔진
+        - recommended_instance_by_size: 현재 서버 사양 기반 인스턴스
+        - recommended_instance_by_sga: SGA 권장사항 기반 인스턴스
+        - avg_cpu_per_s / peak_cpu_per_s: DBCSI 리포트의 CPU/s 메트릭
         """
-        if parsed.target_engine is not None:
-            return
-
-        # migration_recommendation.md 파일 찾기
+        # migration_recommendation.md 파싱
         rec_file = self._find_migration_recommendation(file_path)
-        if not rec_file:
-            return
+        if rec_file:
+            rec_data = self._parse_migration_recommendation(rec_file)
+            # target_engine (직접 파싱 우선)
+            if rec_data.get("target_engine") and not parsed.target_engine:
+                parsed.target_engine = rec_data["target_engine"]
+                logger.info("migration_recommendation.md → target_engine: %s",
+                            parsed.target_engine)
+            # recommended_instance_by_size (직접 파싱 우선)
+            if rec_data.get("recommended_instance_by_size"):
+                parsed.recommended_instance_by_size = rec_data["recommended_instance_by_size"]
+                logger.info("migration_recommendation.md → recommended_instance_by_size: %s",
+                            parsed.recommended_instance_by_size)
+            # recommended_instance_by_sga (직접 파싱 우선)
+            if rec_data.get("recommended_instance_by_sga"):
+                parsed.recommended_instance_by_sga = rec_data["recommended_instance_by_sga"]
+                logger.info("migration_recommendation.md → recommended_instance_by_sga: %s",
+                            parsed.recommended_instance_by_sga)
+
+        # DBCSI MD 리포트에서 CPU/s 파싱
+        dbcsi_files = self._find_dbcsi_files(file_path)
+        if dbcsi_files:
+            cpu_data = self._parse_dbcsi_cpu_per_s(dbcsi_files)
+            m = parsed.awr_metrics
+            if cpu_data.get("avg_cpu_per_s") is not None:
+                m.avg_cpu_per_s = cpu_data["avg_cpu_per_s"]
+                logger.info("DBCSI MD → avg_cpu_per_s: %s", m.avg_cpu_per_s)
+            if cpu_data.get("peak_cpu_per_s") is not None:
+                m.peak_cpu_per_s = cpu_data["peak_cpu_per_s"]
+                logger.info("DBCSI MD → peak_cpu_per_s: %s", m.peak_cpu_per_s)
+
+    def _parse_migration_recommendation(self, rec_file: str) -> dict:
+        """migration_recommendation.md에서 타겟 엔진과 인스턴스 추천을 파싱합니다.
+
+        추출 필드:
+        - target_engine: '**추천 타겟**: ...' 패턴
+        - recommended_instance_by_size: 인스턴스 추천 비교 테이블의 '현재 서버 사양 기반' 컬럼
+        - recommended_instance_by_sga: 인스턴스 추천 비교 테이블의 'SGA 권장사항 기반' 컬럼
+        """
+        import re
 
         try:
             with open(rec_file, "r", encoding="utf-8") as f:
                 content = f.read()
         except Exception as e:
             logger.warning("migration_recommendation.md 읽기 실패: %s", e)
-            return
+            return {}
 
-        # "**추천 타겟**: Aurora PostgreSQL" 패턴 매칭
-        import re
-        match = re.search(
+        result: dict = {}
+
+        # 1. 타겟 엔진: "**추천 타겟**: Aurora PostgreSQL" 패턴
+        target_match = re.search(
             r"\*\*추천\s*타겟\*\*\s*:\s*(.+)",
             content,
         )
-        if not match:
-            return
+        if target_match:
+            target_text = target_match.group(1).strip().lower()
+            for keyword, engine_code in self._TARGET_ENGINE_MAP.items():
+                if keyword in target_text:
+                    result["target_engine"] = engine_code
+                    break
 
-        target_text = match.group(1).strip().lower()
-        for keyword, engine_code in self._TARGET_ENGINE_MAP.items():
-            if keyword in target_text:
-                parsed.target_engine = engine_code
-                logger.info(
-                    "migration_recommendation.md에서 타겟 엔진 추출: %s → %s",
-                    match.group(1).strip(), engine_code,
-                )
-                return
+        # 2. 인스턴스 추천 비교 테이블 파싱
+        # 패턴: | **인스턴스 타입** | db.r6i.8xlarge | db.r6i.4xlarge |
+        inst_match = re.search(
+            r"\|\s*\*\*인스턴스\s*타입\*\*\s*\|\s*(db\.\S+)\s*\|\s*(db\.\S+)\s*\|",
+            content,
+        )
+        if inst_match:
+            result["recommended_instance_by_size"] = inst_match.group(1).strip()
+            result["recommended_instance_by_sga"] = inst_match.group(2).strip()
+
+        return result
+
+    def _parse_dbcsi_cpu_per_s(self, dbcsi_files: list[str]) -> dict:
+        """DBCSI MD 리포트에서 CPU/s 메트릭을 파싱합니다.
+
+        추출 필드:
+        - avg_cpu_per_s: '| 평균 CPU/s | 47.12 |' 패턴
+        - peak_cpu_per_s: '| 최대 CPU/s | 52.50 |' 패턴
+        """
+        import re
+
+        for dbcsi_file in dbcsi_files:
+            try:
+                with open(dbcsi_file, "r", encoding="utf-8") as f:
+                    content = f.read()
+            except Exception as e:
+                logger.warning("DBCSI MD 파일 읽기 실패: %s - %s", dbcsi_file, e)
+                continue
+
+            result: dict = {}
+
+            # 평균 CPU/s
+            avg_match = re.search(
+                r"\|\s*평균\s*CPU/s\s*\|\s*([\d.]+)\s*\|",
+                content,
+            )
+            if avg_match:
+                try:
+                    result["avg_cpu_per_s"] = float(avg_match.group(1))
+                except ValueError:
+                    pass
+
+            # 최대 CPU/s
+            peak_match = re.search(
+                r"\|\s*최대\s*CPU/s\s*\|\s*([\d.]+)\s*\|",
+                content,
+            )
+            if peak_match:
+                try:
+                    result["peak_cpu_per_s"] = float(peak_match.group(1))
+                except ValueError:
+                    pass
+
+            if result:
+                logger.info("DBCSI CPU/s 직접 파싱 완료: %s → %s",
+                            os.path.basename(dbcsi_file), result)
+                return result
+
+        return {}
+
+    def _find_dbcsi_files(self, file_path: str) -> list[str]:
+        """입력 경로에서 DBCSI MD 리포트 파일을 찾습니다.
+
+        dbcsi_report.md 또는 dbcsi_awr_report.md 등 dbcsi*.md 패턴.
+        """
+        candidates: list[str] = []
+
+        if os.path.isdir(file_path):
+            search_dir = file_path
+        elif os.path.isfile(file_path):
+            search_dir = os.path.dirname(file_path)
+        else:
+            return []
+
+        for entry in sorted(os.listdir(search_dir)):
+            if entry.lower().startswith("dbcsi") and entry.lower().endswith(".md"):
+                candidates.append(os.path.join(search_dir, entry))
+
+        return candidates
 
     def _find_migration_recommendation(self, file_path: str) -> str | None:
         """입력 경로에서 migration_recommendation.md 파일을 찾습니다."""
